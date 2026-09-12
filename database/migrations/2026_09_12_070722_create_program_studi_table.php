@@ -11,8 +11,6 @@ return new class extends Migration
         Schema::create('program_studi', function (Blueprint $table) {
             $table->id();
             $table->string('nama_prodi');
-            // Nullable karena saat seeding awal user Kaprodi mungkin belum dibuat
-            $table->foreignId('kaprodi_id')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();
         });
     }

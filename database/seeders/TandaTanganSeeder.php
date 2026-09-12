@@ -1,45 +1,17 @@
 <?php
 
-namespace App\Models;
+namespace Database\Seeders;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Casts\Attribute;
+use Illuminate\Database\Console\Seeds\WithoutModelEvents;
+use Illuminate\Database\Seeder;
 
-class TandaTangan extends Model
+class TandaTanganSeeder extends Seeder
 {
-    use HasFactory;
-
     /**
-     * Nama tabel yang digunakan.
-     *
-     * @var string
+     * Run the database seeds.
      */
-    protected $table = 'tanda_tangan';
-
-    /**
-     * Atribut yang dapat diisi secara massal.
-     *
-     * @var array<int, string>
-     */
-    protected $fillable = [
-        'user_id',
-        'file_path',
-    ];
-
-    /**
-     * Relasi ke User (setiap tanda tangan dimiliki oleh satu user).
-     */
-    public function user(): BelongsTo
+    public function run(): void
     {
-        return $this->belongsTo(User::class);
-    }
-
-    protected function filePath(): Attribute
-    {
-        return Attribute::make(
-            get: fn(string $value) => asset('storage/' . $value),
-        );
+        //
     }
 }
