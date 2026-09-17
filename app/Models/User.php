@@ -22,7 +22,7 @@ class User extends Authenticatable
         'nama',
         'email',
         'google_id',
-        'role',
+        'role_id',
         'program_studi_id',
         'avatar',
         'password',
@@ -42,6 +42,14 @@ class User extends Authenticatable
     }
 
     /* ==================== RELASI ELOQUENT ==================== */
+
+    /**
+     * Role user.
+     */
+    public function role(): BelongsTo
+    {
+        return $this->belongsTo(Role::class, 'role_id');
+    }
 
     /**
      * Program studi tempat user bernaung (Mahasiswa / Dosen / Kaprodi).
