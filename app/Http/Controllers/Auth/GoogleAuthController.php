@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\Role;
 use App\Models\User;
 use Exception;
 use Illuminate\Http\JsonResponse;
@@ -60,7 +61,7 @@ class GoogleAuthController extends Controller
                     'email' => $email,
                     'google_id' => $googleUser->getId(),
                     'avatar' => $googleUser->getAvatar(),
-                    'role' => 'mahasiswa', // Default role
+                    'role_id' => Role::where('name', 'mahasiswa')->value('id'),
                 ]);
             } else {
                 // Update google_id & avatar jika user sudah ada

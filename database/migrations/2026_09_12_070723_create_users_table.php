@@ -14,7 +14,8 @@ return new class extends Migration
             $table->string('nama');
             $table->string('email')->unique();
             $table->string('google_id')->unique()->nullable();
-            $table->foreignId('role_id')->constrained('roles')->cascadeOnDelete();
+            $table->foreignId('role_id')
+                ->constrained('roles')->cascadeOnDelete()->default(1);
             $table->foreignId('program_studi_id')->nullable()->constrained('program_studi')->nullOnDelete();
             $table->string('avatar')->nullable();
             $table->string('password')->nullable();
