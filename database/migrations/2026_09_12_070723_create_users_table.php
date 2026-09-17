@@ -14,7 +14,7 @@ return new class extends Migration
             $table->string('nama');
             $table->string('email')->unique();
             $table->string('google_id')->unique()->nullable();
-            $table->enum('role', ['mahasiswa', 'admin', 'kaprodi', 'manit', 'kadep'])->default('mahasiswa');
+            $table->foreignId('role_id')->constrained('roles')->cascadeOnDelete();
             $table->foreignId('program_studi_id')->nullable()->constrained('program_studi')->nullOnDelete();
             $table->string('avatar')->nullable();
             $table->string('password')->nullable();
