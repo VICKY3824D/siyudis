@@ -17,7 +17,11 @@ class StoreUserRequest extends FormRequest
         return [
             'nama' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'unique:users,email'],
-            'role' => ['required', Rule::in(['admin', 'kaprodi', 'manit', 'kadep'])],
+            'role_id' => [
+                'required',
+                'integer',
+                Rule::exists('roles', 'id')->where(fn ($query) => $query->where('name', '!=', 'mahasiswa')),
+            ],
             'program_studi_id' => ['nullable', 'exists:program_studi,id'],
         ];
     }

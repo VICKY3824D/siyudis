@@ -16,7 +16,7 @@ class UpdateUserRequest extends FormRequest
     {
         return [
             'nama' => ['sometimes', 'string', 'max:255'],
-            'role' => ['sometimes', Rule::in(['mahasiswa', 'staf_akademik', 'kaprodi', 'manit', 'kadep', 'super_admin'])],
+            'role_id' => ['sometimes', 'integer', Rule::exists('roles', 'id')],
             'program_studi_id' => ['nullable', 'exists:program_studi,id'],
         ];
     }
