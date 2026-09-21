@@ -13,15 +13,4 @@ class RoleController extends Controller
     {
         return RoleResource::collection(Role::all());
     }
-
-    public function store(StoreRoleRequest $request)
-    {
-        $role = Role::create([
-            'name' => $request->name,
-            'permissions' => $request->permissions ?? [],
-            'is_system' => false,
-        ]);
-
-        return new RoleResource($role);
-    }
 }
