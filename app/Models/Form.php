@@ -22,8 +22,8 @@ class Form extends Model
         return $this->hasMany(FormField::class, 'form_id')->orderBy('order_position');
     }
 
-//    public function yudisiumEvents(): HasMany
-//    {
-//        return $this->hasMany(YudisiumEvent::class, 'form_id');
-//    }
+    public function yudisiumEvents(): HasMany
+    {
+        return $this->hasMany(YudisiumEvent::class, 'form_id');
+    }
 }
