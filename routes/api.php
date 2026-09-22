@@ -2,10 +2,12 @@
 
 use App\Http\Controllers\Admin\FormController;
 use App\Http\Controllers\Admin\FormFieldController;
-use App\Http\Controllers\Auth\GoogleAuthController;
-use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Admin\RoleController;
+use App\Http\Controllers\Admin\UserController as AdminUserController;
+use App\Http\Controllers\Admin\YudisiumEventController;
+use App\Http\Controllers\Auth\GoogleAuthController;
 use App\Http\Controllers\PengajuanYudisiumController;
+use App\Http\Controllers\ProgramStudiController;
 use App\Http\Controllers\UploadController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -39,6 +41,12 @@ Route::middleware('auth:sanctum')->group(function () {
     // Upload Dokumen
     Route::post('/uploads', [UploadController::class, 'store']);
 
+    // Master Data — Prodi & Periode Yudisium (sesuai dokumen Breakdown List API)
+    Route::get('/program-studi', [ProgramStudiController::class, 'index']);
+    Route::get('/yudisium-events', [YudisiumEventController::class, 'index']);
+    Route::post('/yudisium-events', [YudisiumEventController::class, 'store']);
+    Route::patch('/yudisium-events/{event}', [YudisiumEventController::class, 'update']);
+
     // Admin Routes (Sementara tanpa role middleware)
     Route::prefix('admin')->group(function () {
         // Form Management
@@ -49,6 +57,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('forms/{form}/fields', [FormFieldController::class, 'store']);
         Route::patch('forms/{form}/fields/{field}', [FormFieldController::class, 'update']);
         Route::delete('forms/{form}/fields/{field}', [FormFieldController::class, 'destroy']);
+
+        // Yudisium Event Management
+        Route::apiResource('events', YudisiumEventController::class);
 
         // User Management
         Route::apiResource('users', AdminUserController::class)->except(['edit', 'create']);
