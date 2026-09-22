@@ -14,7 +14,8 @@ class YudisiumEvent extends Model
     protected $fillable = [
         'form_id',
         'program_studi_id',
-        'nama_periode',
+        'nama_event',
+        'periode',
         'tgl_buka',
         'tgl_tutup',
         'tgl_yudisium',
@@ -28,6 +29,14 @@ class YudisiumEvent extends Model
         'is_active' => 'boolean',
     ];
 
+    /**
+     * Accessor untuk nama periode lengkap (gabungan nama_event dan periode).
+     */
+    public function getNamaPeriodeAttribute(): string
+    {
+        return trim(($this->nama_event ?? '').' '.($this->periode ?? ''));
+    }
+
     public function form(): BelongsTo
     {
         return $this->belongsTo(Form::class, 'form_id');
@@ -39,9 +48,7 @@ class YudisiumEvent extends Model
     }
 
     public function programStudi(): BelongsTo
-{
-    return $this->belongsTo(ProgramStudi::class, 'program_studi_id');
-}
-
-
+    {
+        return $this->belongsTo(ProgramStudi::class, 'program_studi_id');
+    }
 }
