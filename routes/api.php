@@ -5,6 +5,8 @@ use App\Http\Controllers\Admin\FormFieldController;
 use App\Http\Controllers\Auth\GoogleAuthController;
 use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Admin\RoleController;
+use App\Http\Controllers\PengajuanYudisiumController;
+use App\Http\Controllers\UploadController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -29,6 +31,14 @@ Route::middleware('auth:sanctum')->group(function () {
         ]);
     });
 
+    // Pengajuan Yudisium (Mahasiswa)
+    Route::get('/pengajuan/active-form', [PengajuanYudisiumController::class, 'activeForm']);
+    Route::get('/pengajuan/me', [PengajuanYudisiumController::class, 'me']);
+    Route::post('/pengajuan', [PengajuanYudisiumController::class, 'store']);
+
+    // Upload Dokumen
+    Route::post('/uploads', [UploadController::class, 'store']);
+
     // Admin Routes (Sementara tanpa role middleware)
     Route::prefix('admin')->group(function () {
         // Form Management
@@ -39,7 +49,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('forms/{form}/fields', [FormFieldController::class, 'store']);
         Route::patch('forms/{form}/fields/{field}', [FormFieldController::class, 'update']);
         Route::delete('forms/{form}/fields/{field}', [FormFieldController::class, 'destroy']);
-        
+
         // User Management
         Route::apiResource('users', AdminUserController::class)->except(['edit', 'create']);
 

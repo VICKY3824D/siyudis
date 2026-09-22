@@ -13,6 +13,7 @@ class YudisiumEvent extends Model
 
     protected $fillable = [
         'form_id',
+        'program_studi_id',
         'nama_periode',
         'tgl_buka',
         'tgl_tutup',
@@ -27,19 +28,20 @@ class YudisiumEvent extends Model
         'is_active' => 'boolean',
     ];
 
-    /**
-     * Relasi ke template Form yang digunakan pada event ini.
-     */
     public function form(): BelongsTo
     {
-        return $this->belongsTo(Form::class);
+        return $this->belongsTo(Form::class, 'form_id');
     }
 
-    /**
-     * Relasi ke pengajuan mahasiswa (akan dibuat pada langkah berikutnya).
-     */
     public function pengajuan(): HasMany
     {
-        return $this->hasMany(PengajuanYudisium::class);
+        return $this->hasMany(PengajuanYudisium::class, 'yudisium_event_id');
     }
+
+    public function programStudi(): BelongsTo
+{
+    return $this->belongsTo(ProgramStudi::class, 'program_studi_id');
+}
+
+
 }
