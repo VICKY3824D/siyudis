@@ -39,7 +39,7 @@ class PengajuanYudisiumController extends Controller
         return response()->json([
             'status' => 'success',
             'data' => [
-                'event' => $event->only(['id', 'nama_event', 'periode', 'tgl_buka', 'tgl_tutup']),
+                'event' => $event->only(['id', 'nama_periode', 'tgl_buka', 'tgl_tutup', 'tgl_yudisium']),
                 'fields' => $event->form->fields,
             ],
         ]);
