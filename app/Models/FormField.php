@@ -15,6 +15,7 @@ class FormField extends Model
 
     protected $fillable = [
         'form_id',
+        'program_studi_id',
         'field_name',
         'field_desc',
         'data_type',
@@ -42,5 +43,10 @@ class FormField extends Model
     public function values(): HasMany
     {
         return $this->hasMany(PengajuanFieldValue::class, 'form_field_id');
+    }
+
+    public function programStudi(): BelongsTo
+    {
+        return $this->belongsTo(ProgramStudi::class, 'program_studi_id');
     }
 }

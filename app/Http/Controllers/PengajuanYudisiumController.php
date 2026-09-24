@@ -22,10 +22,14 @@ class PengajuanYudisiumController extends Controller
     {
         $user = $request->user();
 
-        $event = YudisiumEvent::with(['form.fields' => function ($query) {
-            $query->where('is_visible', true)->orderBy('order_position');
+        $event = YudisiumEvent::with(['form.fields' => function ($query) use ($user) {
+            $query->where('is_visible', true)
+                ->where(function ($q) use ($user) {
+                    $q->whereNull('program_studi_id')
+                        ->orWhere('program_studi_id', $user->program_studi_id);
+                })
+                ->orderBy('order_position');
         }])
-            ->where('program_studi_id', $user->program_studi_id)
             ->where('is_active', true)
             ->latest('tgl_buka')
             ->first();
@@ -33,7 +37,7 @@ class PengajuanYudisiumController extends Controller
         if (!$event) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Belum ada periode yudisium yang aktif untuk program studi Anda',
+                'message' => 'Belum ada periode yudisium yang aktif',
             ], 404);
         }
 

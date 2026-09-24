@@ -32,7 +32,6 @@ class StoreYudisiumEventRequest extends FormRequest
     {
         return [
             'form_id' => 'required|exists:forms,id',
-            'program_studi_id' => 'required|exists:program_studi,id',
             'nama_event' => 'required|string|max:255',
             'periode' => 'required|string|max:255',
             'tgl_buka' => 'required|date',
@@ -50,8 +49,6 @@ class StoreYudisiumEventRequest extends FormRequest
         return [
             'form_id.required' => 'Form yudisium wajib dipilih.',
             'form_id.exists' => 'Form yudisium yang dipilih tidak valid.',
-            'program_studi_id.required' => 'Program studi wajib dipilih.',
-            'program_studi_id.exists' => 'Program studi yang dipilih tidak valid.',
             'nama_event.required' => 'Nama event wajib diisi.',
             'nama_event.string' => 'Nama event harus berupa teks.',
             'nama_event.max' => 'Nama event maksimal :max karakter.',
