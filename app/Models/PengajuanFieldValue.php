@@ -23,6 +23,11 @@ class PengajuanFieldValue extends Model
 //        return $this->belongsTo(PengajuanYudisium::class, 'pengajuan_id');
 //    }
 
+    public function pengajuanYudisium(): BelongsTo
+    {
+        return $this->belongsTo(PengajuanYudisium::class, 'pengajuan_id');
+    }
+
     public function formField(): BelongsTo
     {
         return $this->belongsTo(FormField::class, 'form_field_id');

@@ -4,7 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -75,13 +74,13 @@ class User extends Authenticatable
         return $this->hasOne(TandaTangan::class, 'user_id');
     }
 
-//    /**
-//     * Daftar pengajuan yudisium yang dibuat (khusus Mahasiswa).
-//     */
-//    public function pengajuanYudisium(): HasMany
-//    {
-//        return $this->hasMany(PengajuanYudisium::class, 'user_id');
-//    }
+    /**
+     * Pengajuan yudisium milik user (khusus Mahasiswa, hanya boleh 1x submit).
+     */
+    public function pengajuanYudisium(): HasOne
+    {
+        return $this->hasOne(PengajuanYudisium::class, 'user_id');
+    }
 
     /* ==================== HELPER METHODS ==================== */
 

@@ -2,65 +2,21 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Requests\StoreProgramStudiRequest;
-use App\Http\Requests\UpdateProgramStudiRequest;
 use App\Models\ProgramStudi;
+use Illuminate\Http\JsonResponse;
 
 class ProgramStudiController extends Controller
 {
     /**
-     * Display a listing of the resource.
+     * Display a listing of program studi.
      */
-    public function index()
+    public function index(): JsonResponse
     {
-        //
-    }
+        $prodi = ProgramStudi::with('kaprodi:id,nama,email')->get();
 
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
-    {
-        //
-    }
-
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(StoreProgramStudiRequest $request)
-    {
-        //
-    }
-
-    /**
-     * Display the specified resource.
-     */
-    public function show(ProgramStudi $programStudi)
-    {
-        //
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(ProgramStudi $programStudi)
-    {
-        //
-    }
-
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(UpdateProgramStudiRequest $request, ProgramStudi $programStudi)
-    {
-        //
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(ProgramStudi $programStudi)
-    {
-        //
+        return response()->json([
+            'status' => 'success',
+            'data' => $prodi,
+        ]);
     }
 }
