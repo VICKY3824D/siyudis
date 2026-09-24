@@ -98,6 +98,11 @@ class PengajuanYudisiumController extends Controller
     /**
      * Update field_values pengajuan yang sudah ada. Baris `pengajuan_yudisium`
      * tetap satu (tidak dibuat baru) — hanya value tiap field yang di-upsert.
+     *
+     * Hanya boleh selama status masih `submitted` (belum disentuh staf akademik).
+     * Begitu staf akademik mulai memproses, koreksi harus lewat alur konfirmasi
+     * resmi (mahasiswa tandai "Data Salah" → staf akademik yang edit), sesuai
+     * dokumen Role & Flow poin 6 & 12 — bukan lewat endpoint ini.
      */
     public function update(UpdatePengajuanYudisiumRequest $request): JsonResponse
     {
@@ -112,10 +117,10 @@ class PengajuanYudisiumController extends Controller
             ], 404);
         }
 
-        if (!in_array($pengajuan->status, ['submitted', 'student_revision_requested'], true)) {
+        if ($pengajuan->status !== 'submitted') {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Pengajuan sudah diproses, tidak bisa diubah langsung. Hubungi staf akademik.',
+                'message' => 'Pengajuan sudah mulai diproses staf akademik, tidak bisa diubah langsung. Gunakan alur konfirmasi data.',
             ], 409);
         }
 
