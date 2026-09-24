@@ -44,7 +44,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::apiResource('users', AdminUserController::class)->except(['edit', 'create']);
 
         // Role Management
-        Route::apiResource('roles', RoleController::class)->only(['index', 'store']);
+        Route::apiResource('roles', RoleController::class)->only(['index']);
 
     });
 });

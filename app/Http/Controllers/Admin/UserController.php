@@ -16,7 +16,8 @@ class UserController extends Controller
     public function index(Request $request)
     {
         $users = User::query()
-            ->when($request->role, fn ($q) => $q->where('role', $request->role))
+            ->with('role')
+            ->when($request->role_id, fn ($q) => $q->where('role_id', $request->role_id))
             ->paginate($request->integer('limit', 15));
 
         return UserResource::collection($users);
@@ -28,30 +29,41 @@ class UserController extends Controller
             'nomor_induk' => 'STAFF-' . Str::random(8),
             'nama' => $request->nama,
             'email' => $request->email,
-            'role' => $request->role,
+            'role_id' => $request->role_id,
             'program_studi_id' => $request->program_studi_id,
             'password' => bcrypt(Str::random(16)),
         ]);
 
-        return new UserResource($user);
+        return new UserResource($user->load('role'));
     }
 
     public function show(User $user)
     {
-        return new UserResource($user);
+        return new UserResource($user->load('role'));
     }
 
     public function update(UpdateUserRequest $request, User $user)
     {
         $user->update($request->validated());
 
-        return new UserResource($user);
+        return new UserResource($user->load('role'));
     }
 
     public function destroy(User $user)
     {
+        // $isReferenced = DB::table('pengajuan_yudisium')
+        //     ->where('checked_akademik_by', $user->id)
+        //     ->orWhere('acc_kaprodi_by', $user->id)
+        //     ->orWhere('acc_manit_by', $user->id)
+        //     ->orWhere('acc_kadep_by', $user->id)
+        //     ->exists();
+
+        // if ($isReferenced) {
+        //     return response()->json(['message' => 'User masih terkait proses pengajuan yang berjalan'], 409);
+        // }
+
         $user->delete();
 
-    return response()->json(null, 204);
+        return response()->json(null, 204);
     }
 }
