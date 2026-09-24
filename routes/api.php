@@ -37,6 +37,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/pengajuan/active-form', [PengajuanYudisiumController::class, 'activeForm']);
     Route::get('/pengajuan/me', [PengajuanYudisiumController::class, 'me']);
     Route::post('/pengajuan', [PengajuanYudisiumController::class, 'store']);
+    Route::put('/pengajuan', [PengajuanYudisiumController::class, 'update']);
 
     // Upload Dokumen
     Route::post('/uploads', [UploadController::class, 'store']);

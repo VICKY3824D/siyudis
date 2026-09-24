@@ -2,28 +2,25 @@
 
 namespace App\Http\Requests;
 
-use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
 class UpdatePengajuanYudisiumRequest extends FormRequest
 {
-    /**
-     * Determine if the user is authorized to make this request.
-     */
     public function authorize(): bool
     {
-        return false;
+        return true;
     }
 
     /**
-     * Get the validation rules that apply to the request.
-     *
-     * @return array<string, ValidationRule|array<mixed>|string>
+     * Validasi struktural saja — validasi bisnis per field (wajib/tipe data)
+     * tetap dilakukan di controller karena field-nya dinamis.
      */
     public function rules(): array
     {
         return [
-            //
+            'field_values' => ['required', 'array', 'min:1'],
+            'field_values.*.form_field_id' => ['required', 'integer', 'exists:form_fields,id'],
+            'field_values.*.value' => ['nullable', 'string'],
         ];
     }
 }

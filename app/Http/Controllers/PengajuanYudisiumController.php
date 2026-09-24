@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StorePengajuanYudisiumRequest;
+use App\Http\Requests\UpdatePengajuanYudisiumRequest;
 use App\Models\PengajuanFieldValue;
 use App\Models\PengajuanYudisium;
 use App\Models\YudisiumEvent;
@@ -29,7 +30,7 @@ class PengajuanYudisiumController extends Controller
             ->latest('tgl_buka')
             ->first();
 
-        if (! $event) {
+        if (!$event) {
             return response()->json([
                 'status' => 'error',
                 'message' => 'Belum ada periode yudisium yang aktif untuk program studi Anda',
@@ -95,6 +96,51 @@ class PengajuanYudisiumController extends Controller
     }
 
     /**
+     * Update field_values pengajuan yang sudah ada. Baris `pengajuan_yudisium`
+     * tetap satu (tidak dibuat baru) — hanya value tiap field yang di-upsert.
+     */
+    public function update(UpdatePengajuanYudisiumRequest $request): JsonResponse
+    {
+        $pengajuan = PengajuanYudisium::with('yudisiumEvent.form.fields')
+            ->where('user_id', $request->user()->id)
+            ->first();
+
+        if (!$pengajuan) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Anda belum pernah submit pengajuan yudisium',
+            ], 404);
+        }
+
+        if (!in_array($pengajuan->status, ['submitted', 'student_revision_requested'], true)) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Pengajuan sudah diproses, tidak bisa diubah langsung. Hubungi staf akademik.',
+            ], 409);
+        }
+
+        $this->validateFieldValues($pengajuan->yudisiumEvent, $request->array('field_values'));
+
+        DB::transaction(function () use ($pengajuan, $request) {
+            foreach ($request->array('field_values') as $fieldValue) {
+                PengajuanFieldValue::updateOrCreate(
+                    [
+                        'pengajuan_id' => $pengajuan->id,
+                        'form_field_id' => $fieldValue['form_field_id'],
+                    ],
+                    ['value' => $fieldValue['value'] ?? null]
+                );
+            }
+        });
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Pengajuan yudisium berhasil diperbarui',
+            'data' => $pengajuan->fresh(['yudisiumEvent', 'fieldValues.formField']),
+        ]);
+    }
+
+    /**
      * Cek status pengajuan milik mahasiswa yang sedang login.
      */
     public function me(Request $request): JsonResponse
@@ -103,7 +149,7 @@ class PengajuanYudisiumController extends Controller
             ->where('user_id', $request->user()->id)
             ->first();
 
-        if (! $pengajuan) {
+        if (!$pengajuan) {
             return response()->json([
                 'status' => 'error',
                 'message' => 'Anda belum pernah submit pengajuan yudisium',
@@ -120,7 +166,7 @@ class PengajuanYudisiumController extends Controller
      * Validasi field_values terhadap field wajib & tipe data pada form yang aktif.
      * Dinamis karena tergantung konfigurasi field dari Super Admin.
      *
-     * @param  array<int, array{form_field_id: int, value: mixed}>  $fieldValues
+     * @param array<int, array{form_field_id: int, value: mixed}> $fieldValues
      */
     private function validateFieldValues(YudisiumEvent $event, array $fieldValues): void
     {
@@ -152,7 +198,7 @@ class PengajuanYudisiumController extends Controller
             }
         }
 
-        if (! empty($errors)) {
+        if (!empty($errors)) {
             throw ValidationException::withMessages($errors);
         }
     }
