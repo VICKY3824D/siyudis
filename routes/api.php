@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\FormFieldController;
 use App\Http\Controllers\Auth\GoogleAuthController;
 use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Admin\RoleController;
+use App\Http\Controllers\PengajuanResubmissionController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -39,6 +40,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('forms/{form}/fields', [FormFieldController::class, 'store']);
         Route::patch('forms/{form}/fields/{field}', [FormFieldController::class, 'update']);
         Route::delete('forms/{form}/fields/{field}', [FormFieldController::class, 'destroy']);
+
+        // Form Resubmission
+        Route::post('/pengajuan/{pengajuan}/resubmit-document', [PengajuanResubmissionController::class, 'store']);
         
         // User Management
         Route::apiResource('users', AdminUserController::class)->except(['edit', 'create']);
