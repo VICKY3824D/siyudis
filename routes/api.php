@@ -6,8 +6,11 @@ use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Admin\YudisiumEventController;
 use App\Http\Controllers\Auth\GoogleAuthController;
+use App\Http\Controllers\BeritaAcaraController;
+use App\Http\Controllers\PengajuanKonfirmasiController;
 use App\Http\Controllers\PengajuanYudisiumController;
 use App\Http\Controllers\ProgramStudiController;
+use App\Http\Controllers\StafAkademik\StafAkademikPengajuanController;
 use App\Http\Controllers\UploadController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -39,6 +42,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/pengajuan', [PengajuanYudisiumController::class, 'store']);
     Route::put('/pengajuan', [PengajuanYudisiumController::class, 'update']);
 
+    // Konfirmasi Data Penilaian (Mahasiswa)
+    Route::middleware('role:mahasiswa')->prefix('pengajuan/me')->group(function () {
+        Route::get('/rekap', [PengajuanKonfirmasiController::class, 'rekap']);
+        Route::patch('/konfirmasi', [PengajuanKonfirmasiController::class, 'konfirmasi']);
+    });
+
     // Upload Dokumen
     Route::post('/uploads', [UploadController::class, 'store']);
 
@@ -47,6 +56,16 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/yudisium-events', [YudisiumEventController::class, 'index']);
     Route::post('/yudisium-events', [YudisiumEventController::class, 'store']);
     Route::patch('/yudisium-events/{event}', [YudisiumEventController::class, 'update']);
+    Route::patch('/yudisium-events/{event}/berita-acara', [BeritaAcaraController::class, 'update']);
+
+    // Staf Akademik Routes
+    Route::middleware('role:staf_akademik,super_admin')->prefix('staf-akademik')->group(function () {
+        Route::get('/pengajuan', [StafAkademikPengajuanController::class, 'index']);
+        Route::get('/pengajuan/{pengajuan}', [StafAkademikPengajuanController::class, 'show']);
+        Route::put('/pengajuan/{pengajuan}/penilaian', [StafAkademikPengajuanController::class, 'storePenilaian']);
+        Route::post('/pengajuan/{pengajuan}/kirim-konfirmasi', [StafAkademikPengajuanController::class, 'kirimKonfirmasi']);
+        Route::post('/pengajuan/{pengajuan}/checklist', [StafAkademikPengajuanController::class, 'checklist']);
+    });
 
     // Admin Routes (Sementara tanpa role middleware)
     Route::prefix('admin')->group(function () {
