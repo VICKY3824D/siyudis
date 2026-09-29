@@ -13,7 +13,6 @@ class YudisiumEvent extends Model
 
     protected $fillable = [
         'form_id',
-        'program_studi_id',
         'nama_event',
         'periode',
         'nomor_surat',
