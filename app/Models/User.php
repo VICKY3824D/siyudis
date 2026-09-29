@@ -86,26 +86,26 @@ class User extends Authenticatable
 
     public function isMahasiswa(): bool
     {
-        return $this->role === 'mahasiswa';
+        return $this->role?->name === 'mahasiswa';
     }
 
     public function isStafAkademik(): bool
     {
-        return $this->role === 'staf_akademik';
+        return $this->role?->name === 'staf_akademik';
     }
 
     public function isKaprodi(): bool
     {
-        return $this->role === 'kaprodi';
+        return $this->role?->name === 'kaprodi';
     }
 
     public function isManit(): bool
     {
-        return $this->role === 'manit';
+        return $this->role?->name === 'manit';
     }
 
     public function isKadep(): bool
     {
-        return $this->role === 'kadep';
+        return $this->role?->name === 'kadep';
     }
 }
