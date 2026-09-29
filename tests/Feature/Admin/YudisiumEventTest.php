@@ -46,7 +46,6 @@ test('admin can list yudisium events via /api/admin/events and /api/yudisium-eve
 
     YudisiumEvent::create([
         'form_id' => $this->form->id,
-//        'program_studi_id' => $this->prodi->id,
         'nama_event' => 'Yudisium Periode 1',
         'periode' => '2026',
         'tgl_buka' => '2026-01-01 08:00:00',
@@ -73,7 +72,6 @@ test('admin can create a new yudisium event', function () {
 
     $payload = [
         'form_id' => $this->form->id,
-//        'program_studi_id' => $this->prodi->id,
         'nama_event' => 'Yudisium Periode Gasal',
         'periode' => '2025/2026',
         'tgl_buka' => '2026-03-01 08:00:00',
@@ -92,7 +90,6 @@ test('admin can create a new yudisium event', function () {
                 'nama_event' => 'Yudisium Periode Gasal',
                 'periode' => '2025/2026',
                 'form_id' => $this->form->id,
-//                'program_studi_id' => $this->prodi->id,
             ],
         ]);
 
@@ -107,7 +104,6 @@ test('admin can create event using Breakdown List API payload (tanggal_buka, tan
 
     $payload = [
         'form_id' => $this->form->id,
-//        'program_studi_id' => $this->prodi->id,
         'nama_event' => 'Yudisium Periode IV',
         'periode' => 'TA 2025/2026',
         'tanggal_buka' => '2026-04-01 08:00:00',
@@ -133,12 +129,11 @@ test('admin can create event using Breakdown List API payload (tanggal_buka, tan
     ]);
 });
 
-test('returns 409 conflict when active event overlaps for the same prodi', function () {
+test('returns 409 conflict when active events overlap', function () {
     Sanctum::actingAs($this->user);
 
     YudisiumEvent::create([
         'form_id' => $this->form->id,
-//        'program_studi_id' => $this->prodi->id,
         'nama_event' => 'Periode Aktif Pertama',
         'periode' => '2026',
         'tgl_buka' => '2026-05-01 08:00:00',
@@ -146,10 +141,9 @@ test('returns 409 conflict when active event overlaps for the same prodi', funct
         'is_active' => true,
     ]);
 
-    // Attempt to create overlapping active event for same prodi
+    // Attempt to create overlapping active event
     $payload = [
         'form_id' => $this->form->id,
-//        'program_studi_id' => $this->prodi->id,
         'nama_event' => 'Periode Tumpang Tindih',
         'periode' => '2026',
         'tgl_buka' => '2026-05-15 08:00:00',
@@ -162,7 +156,7 @@ test('returns 409 conflict when active event overlaps for the same prodi', funct
     $response->assertStatus(409)
         ->assertJson([
             'status' => 'error',
-            'message' => 'Event aktif tumpang tindih untuk program studi ini',
+            'message' => 'Event aktif tumpang tindih dengan periode yudisium lain',
         ]);
 });
 
@@ -171,7 +165,6 @@ test('validation fails when tgl_tutup is before tgl_buka', function () {
 
     $payload = [
         'form_id' => $this->form->id,
-//        'program_studi_id' => $this->prodi->id,
         'nama_event' => 'Periode Invalid',
         'periode' => '2026',
         'tgl_buka' => '2026-03-20 08:00:00',
@@ -189,7 +182,6 @@ test('admin can view a single yudisium event', function () {
 
     $event = YudisiumEvent::create([
         'form_id' => $this->form->id,
-//        'program_studi_id' => $this->prodi->id,
         'nama_event' => 'Periode Detail Test',
         'periode' => '2026',
         'tgl_buka' => '2026-04-01 08:00:00',
@@ -215,7 +207,6 @@ test('admin can update a yudisium event via patch /api/yudisium-events/{id}', fu
 
     $event = YudisiumEvent::create([
         'form_id' => $this->form->id,
-//        'program_studi_id' => $this->prodi->id,
         'nama_event' => 'Periode Sebelum Update',
         'periode' => '2026',
         'tgl_buka' => '2026-05-01 08:00:00',
@@ -248,7 +239,6 @@ test('admin can delete a yudisium event without submissions', function () {
 
     $event = YudisiumEvent::create([
         'form_id' => $this->form->id,
-//        'program_studi_id' => $this->prodi->id,
         'nama_event' => 'Periode Akan Dihapus',
         'periode' => '2026',
         'tgl_buka' => '2026-06-01 08:00:00',
@@ -274,7 +264,6 @@ test('admin cannot delete an event with submissions', function () {
 
     $event = YudisiumEvent::create([
         'form_id' => $this->form->id,
-//        'program_studi_id' => $this->prodi->id,
         'nama_event' => 'Periode Dengan Pengajuan',
         'periode' => '2026',
         'tgl_buka' => '2026-07-01 08:00:00',
@@ -312,7 +301,6 @@ test('admin cannot delete an event with submissions', function () {
 test('mahasiswa can retrieve active form with event info (nama_event, periode)', function () {
     $event = YudisiumEvent::create([
         'form_id' => $this->form->id,
-//        'program_studi_id' => $this->prodi->id,
         'nama_event' => 'Yudisium Periode Gasal',
         'periode' => '2025/2026',
         'tgl_buka' => now()->subDays(2),

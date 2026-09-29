@@ -11,17 +11,15 @@ use Illuminate\Http\Request;
 
 class YudisiumEventController extends Controller
 {
+    private const OVERLAP_MESSAGE = 'Event aktif tumpang tindih dengan periode yudisium lain';
+
     /**
      * Menampilkan daftar periode yudisium.
      */
     public function index(Request $request): JsonResponse
     {
-        $query = YudisiumEvent::with(['form:id,nama_form', 'programStudi:id,nama_prodi'])
+        $query = YudisiumEvent::with('form:id,nama_form')
             ->withCount('pengajuan');
-
-        if ($request->filled('program_studi_id')) {
-            $query->where('program_studi_id', $request->program_studi_id);
-        }
 
         if ($request->has('is_active')) {
             $query->where('is_active', $request->boolean('is_active'));
@@ -43,24 +41,21 @@ class YudisiumEventController extends Controller
         $isActive = $request->has('is_active') ? $request->boolean('is_active') : true;
 
         if ($isActive) {
-            $hasOverlap = YudisiumEvent::where('program_studi_id', $request->input('program_studi_id'))
-                ->where('is_active', true)
-                ->where(function ($q) use ($request) {
-                    $q->where('tgl_buka', '<=', $request->input('tgl_tutup'))
-                        ->where('tgl_tutup', '>=', $request->input('tgl_buka'));
-                })
+            $hasOverlap = YudisiumEvent::where('is_active', true)
+                ->where('tgl_buka', '<=', $request->input('tgl_tutup'))
+                ->where('tgl_tutup', '>=', $request->input('tgl_buka'))
                 ->exists();
 
             if ($hasOverlap) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Event aktif tumpang tindih untuk program studi ini',
+                    'message' => self::OVERLAP_MESSAGE,
                 ], 409);
             }
         }
 
         $event = YudisiumEvent::create($request->validated());
-        $event->load(['form:id,nama_form', 'programStudi:id,nama_prodi']);
+        $event->load('form:id,nama_form');
 
         return response()->json([
             'status' => 'success',
@@ -78,7 +73,6 @@ class YudisiumEventController extends Controller
             'form.fields' => function ($query) {
                 $query->orderBy('order_position', 'asc');
             },
-            'programStudi:id,nama_prodi',
         ])->loadCount('pengajuan');
 
         return response()->json([
@@ -93,30 +87,26 @@ class YudisiumEventController extends Controller
     public function update(UpdateYudisiumEventRequest $request, YudisiumEvent $event): JsonResponse
     {
         $targetIsActive = $request->has('is_active') ? $request->boolean('is_active') : $event->is_active;
-        $targetProdiId = $request->input('program_studi_id', $event->program_studi_id);
         $targetBuka = $request->input('tgl_buka', $event->tgl_buka);
         $targetTutup = $request->input('tgl_tutup', $event->tgl_tutup);
 
         if ($targetIsActive) {
-            $hasOverlap = YudisiumEvent::where('program_studi_id', $targetProdiId)
-                ->where('id', '!=', $event->id)
+            $hasOverlap = YudisiumEvent::where('id', '!=', $event->id)
                 ->where('is_active', true)
-                ->where(function ($q) use ($targetBuka, $targetTutup) {
-                    $q->where('tgl_buka', '<=', $targetTutup)
-                        ->where('tgl_tutup', '>=', $targetBuka);
-                })
+                ->where('tgl_buka', '<=', $targetTutup)
+                ->where('tgl_tutup', '>=', $targetBuka)
                 ->exists();
 
             if ($hasOverlap) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Event aktif tumpang tindih untuk program studi ini',
+                    'message' => self::OVERLAP_MESSAGE,
                 ], 409);
             }
         }
 
         $event->update($request->validated());
-        $event->load(['form:id,nama_form', 'programStudi:id,nama_prodi']);
+        $event->load('form:id,nama_form');
 
         return response()->json([
             'status' => 'success',
