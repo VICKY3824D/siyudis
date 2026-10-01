@@ -49,4 +49,16 @@ class FormField extends Model
     {
         return $this->belongsTo(ProgramStudi::class, 'program_studi_id');
     }
+
+    /**
+     * Scope: field yang berlaku buat mahasiswa prodi tertentu — yaitu field
+     * general (program_studi_id null) ATAU field khusus prodi itu.
+     */
+    public function scopeApplicableTo($query, ?int $programStudiId)
+    {
+        return $query->where(function ($q) use ($programStudiId) {
+            $q->whereNull('program_studi_id')
+                ->orWhere('program_studi_id', $programStudiId);
+        });
+    }
 }

@@ -22,12 +22,21 @@ class PengajuanYudisium extends Model
         'checked_akademik_by',
         'catatan_koreksi_mahasiswa',
         'catatan_revisi_internal',
+        'approved_kaprodi_by',
+        'approved_kaprodi_at',
+        'approved_manit_by',
+        'approved_manit_at',
+        'approved_kadep_by',
+        'approved_kadep_at',
     ];
 
     protected function casts(): array
     {
         return [
             'submitted_at' => 'datetime',
+            'approved_kaprodi_at' => 'datetime',
+            'approved_manit_at' => 'datetime',
+            'approved_kadep_at' => 'datetime',
         ];
     }
 
@@ -54,5 +63,20 @@ class PengajuanYudisium extends Model
     public function dataBeritaAcara(): HasOne
     {
         return $this->hasOne(DataBeritaAcaraMahasiswa::class, 'pengajuan_id');
+    }
+
+    public function approvedKaprodiBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'approved_kaprodi_by');
+    }
+
+    public function approvedManitBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'approved_manit_by');
+    }
+
+    public function approvedKadepBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'approved_kadep_by');
     }
 }

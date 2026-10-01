@@ -24,17 +24,14 @@ class PengajuanYudisiumController extends Controller
 
         $event = YudisiumEvent::with(['form.fields' => function ($query) use ($user) {
             $query->where('is_visible', true)
-                ->where(function ($q) use ($user) {
-                    $q->whereNull('program_studi_id')
-                        ->orWhere('program_studi_id', $user->program_studi_id);
-                })
+                ->applicableTo($user->program_studi_id)
                 ->orderBy('order_position');
         }])
             ->where('is_active', true)
             ->latest('tgl_buka')
             ->first();
 
-        if (!$event) {
+        if (! $event) {
             return response()->json([
                 'status' => 'error',
                 'message' => 'Belum ada periode yudisium yang aktif',
@@ -65,7 +62,9 @@ class PengajuanYudisiumController extends Controller
             ], 409);
         }
 
-        $event = YudisiumEvent::with('form.fields')
+        $event = YudisiumEvent::with(['form.fields' => function ($query) use ($user) {
+            $query->applicableTo($user->program_studi_id);
+        }])
             ->findOrFail($request->integer('yudisium_event_id'));
 
         $this->validateFieldValues($event, $request->array('field_values'));
@@ -104,17 +103,16 @@ class PengajuanYudisiumController extends Controller
      * tetap satu (tidak dibuat baru) — hanya value tiap field yang di-upsert.
      *
      * Hanya boleh selama status masih `submitted` (belum disentuh staf akademik).
-     * Begitu staf akademik mulai memproses, koreksi harus lewat alur konfirmasi
-     * resmi (mahasiswa tandai "Data Salah" → staf akademik yang edit), sesuai
-     * dokumen Role & Flow poin 6 & 12 — bukan lewat endpoint ini.
      */
     public function update(UpdatePengajuanYudisiumRequest $request): JsonResponse
     {
-        $pengajuan = PengajuanYudisium::with('yudisiumEvent.form.fields')
+        $pengajuan = PengajuanYudisium::with(['yudisiumEvent.form.fields' => function ($query) use ($request) {
+            $query->applicableTo($request->user()->program_studi_id);
+        }])
             ->where('user_id', $request->user()->id)
             ->first();
 
-        if (!$pengajuan) {
+        if (! $pengajuan) {
             return response()->json([
                 'status' => 'error',
                 'message' => 'Anda belum pernah submit pengajuan yudisium',
@@ -158,7 +156,7 @@ class PengajuanYudisiumController extends Controller
             ->where('user_id', $request->user()->id)
             ->first();
 
-        if (!$pengajuan) {
+        if (! $pengajuan) {
             return response()->json([
                 'status' => 'error',
                 'message' => 'Anda belum pernah submit pengajuan yudisium',
@@ -173,14 +171,22 @@ class PengajuanYudisiumController extends Controller
 
     /**
      * Validasi field_values terhadap field wajib & tipe data pada form yang aktif.
-     * Dinamis karena tergantung konfigurasi field dari Super Admin.
      *
-     * @param array<int, array{form_field_id: int, value: mixed}> $fieldValues
+     * @param  array<int, array{form_field_id: int, value: mixed}>  $fieldValues
      */
     private function validateFieldValues(YudisiumEvent $event, array $fieldValues): void
     {
         $submitted = collect($fieldValues)->keyBy('form_field_id');
         $errors = [];
+        $applicableFieldIds = $event->form->fields->pluck('id');
+
+        // Tolak field_values yang menunjuk field di luar form ini atau di luar
+        // prodi mahasiswa (mis. field khusus prodi lain).
+        foreach ($submitted->keys() as $fieldId) {
+            if (! $applicableFieldIds->contains($fieldId)) {
+                $errors["field_{$fieldId}"] = 'Field tidak berlaku untuk form/program studi Anda';
+            }
+        }
 
         foreach ($event->form->fields as $field) {
             $value = $submitted->get($field->id)['value'] ?? null;
@@ -207,7 +213,7 @@ class PengajuanYudisiumController extends Controller
             }
         }
 
-        if (!empty($errors)) {
+        if (! empty($errors)) {
             throw ValidationException::withMessages($errors);
         }
     }

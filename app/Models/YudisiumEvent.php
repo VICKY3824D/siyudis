@@ -47,9 +47,4 @@ class YudisiumEvent extends Model
     {
         return $this->hasMany(PengajuanYudisium::class, 'yudisium_event_id');
     }
-
-    public function programStudi(): BelongsTo
-    {
-        return $this->belongsTo(ProgramStudi::class, 'program_studi_id');
-    }
 }
