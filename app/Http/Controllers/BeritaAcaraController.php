@@ -18,7 +18,7 @@ class BeritaAcaraController extends Controller
         return response()->json([
             'status' => 'success',
             'message' => 'Data berita acara berhasil diperbarui',
-            'data' => $event->fresh(['form', 'programStudi']),
+            'data' => $event->fresh(['form']),
         ]);
     }
 }
