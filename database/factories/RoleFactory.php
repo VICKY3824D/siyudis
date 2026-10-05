@@ -2,13 +2,13 @@
 
 namespace Database\Factories;
 
-use App\Models\ProgramStudi;
+use App\Models\Role;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
- * @extends Factory<ProgramStudi>
+ * @extends Factory<Role>
  */
-class ProgramStudiFactory extends Factory
+class RoleFactory extends Factory
 {
     /**
      * Define the model's default state.
@@ -18,7 +18,7 @@ class ProgramStudiFactory extends Factory
     public function definition(): array
     {
         return [
-            'nama_prodi' => $this->faker->randomElement(['Teknik Informatika', 'Sistem Informasi', 'Teknik Komputer', 'Ilmu Komputer']),
+            'name' => $this->faker->unique()->randomElement(['super_admin', 'staf_akademik', 'kaprodi', 'manit', 'kadep', 'mahasiswa']),
         ];
     }
 }

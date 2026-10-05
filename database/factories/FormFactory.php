@@ -18,7 +18,7 @@ class FormFactory extends Factory
     public function definition(): array
     {
         return [
-            //
+            'nama_form' => $this->faker->sentence(3),
         ];
     }
 }
