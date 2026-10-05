@@ -22,12 +22,17 @@ class PengajuanYudisium extends Model
         'checked_akademik_by',
         'catatan_koreksi_mahasiswa',
         'catatan_revisi_internal',
+        'email_status',
+        'email_sent_at',
+        'email_error',
+        'email_attempts',
     ];
 
     protected function casts(): array
     {
         return [
             'submitted_at' => 'datetime',
+            'email_sent_at' => 'datetime',
         ];
     }
 
