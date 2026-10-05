@@ -7,10 +7,14 @@ use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Admin\YudisiumEventController;
 use App\Http\Controllers\Auth\GoogleAuthController;
 use App\Http\Controllers\BeritaAcaraController;
+use App\Http\Controllers\Kadep\KadepPengajuanController;
+use App\Http\Controllers\Kaprodi\KaprodiPengajuanController;
+use App\Http\Controllers\Manit\ManitPengajuanController;
 use App\Http\Controllers\PengajuanKonfirmasiController;
 use App\Http\Controllers\PengajuanYudisiumController;
 use App\Http\Controllers\ProgramStudiController;
 use App\Http\Controllers\StafAkademik\StafAkademikPengajuanController;
+use App\Http\Controllers\TandaTanganController;
 use App\Http\Controllers\UploadController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -51,7 +55,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Upload Dokumen
     Route::post('/uploads', [UploadController::class, 'store']);
 
-    // Master Data — Prodi & Periode Yudisium (sesuai dokumen Breakdown List API)
+    // Master Data — Prodi & Periode Yudisium
     Route::get('/program-studi', [ProgramStudiController::class, 'index']);
     Route::get('/yudisium-events', [YudisiumEventController::class, 'index']);
     Route::post('/yudisium-events', [YudisiumEventController::class, 'store']);
@@ -67,25 +71,48 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/pengajuan/{pengajuan}/checklist', [StafAkademikPengajuanController::class, 'checklist']);
     });
 
+    // Approval Kaprodi
+    Route::middleware('role:kaprodi')->prefix('kaprodi')->group(function () {
+        Route::get('/pengajuan', [KaprodiPengajuanController::class, 'index']);
+        Route::get('/pengajuan/{pengajuan}', [KaprodiPengajuanController::class, 'show']);
+        Route::patch('/pengajuan/{pengajuan}/approve', [KaprodiPengajuanController::class, 'approve']);
+        Route::patch('/pengajuan/{pengajuan}/reject', [KaprodiPengajuanController::class, 'reject']);
+    });
+
+    // Approval Manit (paralel dengan Kadep)
+    Route::middleware('role:manit')->prefix('manit')->group(function () {
+        Route::get('/pengajuan', [ManitPengajuanController::class, 'index']);
+        Route::get('/pengajuan/{pengajuan}/preview', [ManitPengajuanController::class, 'preview']);
+        Route::patch('/pengajuan/{pengajuan}/approve', [ManitPengajuanController::class, 'approve']);
+        Route::patch('/pengajuan/{pengajuan}/reject', [ManitPengajuanController::class, 'reject']);
+    });
+
+    // Approval Kadep (paralel dengan Manit)
+    Route::middleware('role:kadep')->prefix('kadep')->group(function () {
+        Route::get('/pengajuan', [KadepPengajuanController::class, 'index']);
+        Route::get('/pengajuan/{pengajuan}/preview', [KadepPengajuanController::class, 'preview']);
+        Route::patch('/pengajuan/{pengajuan}/approve', [KadepPengajuanController::class, 'approve']);
+        Route::patch('/pengajuan/{pengajuan}/reject', [KadepPengajuanController::class, 'reject']);
+    });
+
+    // E-Signature (Kaprodi/Manit/Kadep)
+    Route::middleware('role:kaprodi,manit,kadep')->group(function () {
+        Route::post('/signature', [TandaTanganController::class, 'store']);
+        Route::get('/signature/me', [TandaTanganController::class, 'me']);
+        Route::put('/signature/me', [TandaTanganController::class, 'update']);
+    });
+
     // Admin Routes (Sementara tanpa role middleware)
     Route::prefix('admin')->group(function () {
-        // Form Management
         Route::apiResource('forms', FormController::class);
 
-        // Form Field Management
         Route::get('forms/{form}/fields', [FormFieldController::class, 'index']);
         Route::post('forms/{form}/fields', [FormFieldController::class, 'store']);
         Route::patch('forms/{form}/fields/{field}', [FormFieldController::class, 'update']);
         Route::delete('forms/{form}/fields/{field}', [FormFieldController::class, 'destroy']);
 
-        // Yudisium Event Management
         Route::apiResource('events', YudisiumEventController::class);
-
-        // User Management
         Route::apiResource('users', AdminUserController::class)->except(['edit', 'create']);
-
-        // Role Management
         Route::apiResource('roles', RoleController::class)->only(['index']);
-
     });
 });

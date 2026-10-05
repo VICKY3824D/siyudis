@@ -13,7 +13,6 @@ class YudisiumEvent extends Model
 
     protected $fillable = [
         'form_id',
-        'program_studi_id',
         'nama_event',
         'periode',
         'nomor_surat',
@@ -47,10 +46,5 @@ class YudisiumEvent extends Model
     public function pengajuan(): HasMany
     {
         return $this->hasMany(PengajuanYudisium::class, 'yudisium_event_id');
-    }
-
-    public function programStudi(): BelongsTo
-    {
-        return $this->belongsTo(ProgramStudi::class, 'program_studi_id');
     }
 }
