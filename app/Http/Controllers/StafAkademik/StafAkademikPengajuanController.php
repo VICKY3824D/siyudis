@@ -5,13 +5,12 @@ namespace App\Http\Controllers\StafAkademik;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreDataPenilaianRequest;
 use App\Http\Resources\DataPenilaianResource;
-use App\Mail\RekapDataMahasiswaMail;
+use App\Jobs\KirimEmailKonfirmasiJob;
 use App\Models\DataBeritaAcaraMahasiswa;
 use App\Models\PengajuanYudisium;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Mail;
 
 class StafAkademikPengajuanController extends Controller
 {
@@ -41,6 +40,11 @@ class StafAkademikPengajuanController extends Controller
 
         if ($request->filled('tanggal_sampai')) {
             $query->whereDate('submitted_at', '<=', $request->tanggal_sampai);
+        }
+
+        // Filter email_status
+        if ($request->filled('email_status')) {
+            $query->where('email_status', $request->email_status);
         }
 
         $pengajuan = $query->paginate($request->integer('limit', 15));
@@ -106,7 +110,7 @@ class StafAkademikPengajuanController extends Controller
     }
 
     /**
-     * Kirim email konfirmasi ke mahasiswa.
+     * Kirim email konfirmasi ke mahasiswa (kirim & kirim ulang).
      */
     public function kirimKonfirmasi(PengajuanYudisium $pengajuan): JsonResponse
     {
@@ -127,25 +131,32 @@ class StafAkademikPengajuanController extends Controller
             ], 409);
         }
 
-        $pengajuan->load(['user', 'yudisiumEvent', 'dataBeritaAcara']);
-
-        try {
-            // Kirim email secara sinkron
-            Mail::to($pengajuan->user->email)->send(new RekapDataMahasiswaMail($pengajuan));
-
-            // Update status setelah berhasil kirim email
-            $pengajuan->update(['status' => 'waiting_student_confirmation']);
-
-            return response()->json([
-                'status' => 'success',
-                'message' => 'Email konfirmasi berhasil dikirim ke '.$pengajuan->user->email,
-            ]);
-        } catch (\Exception $e) {
+        // Validasi email sedang dalam proses pengiriman
+        if ($pengajuan->email_status === 'pending') {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Gagal mengirim email: '.$e->getMessage(),
-            ], 502);
+                'message' => 'Email sedang dalam proses pengiriman, mohon tunggu.',
+            ], 409);
         }
+
+        // Set status email pending dan increment attempts
+        $pengajuan->update([
+            'email_status' => 'pending',
+            'email_error' => null,
+            'email_attempts' => $pengajuan->email_attempts + 1,
+        ]);
+
+        // Dispatch job ke queue
+        KirimEmailKonfirmasiJob::dispatch($pengajuan);
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Email konfirmasi sedang dikirim ke '.$pengajuan->user->email,
+            'data' => [
+                'email_status' => $pengajuan->email_status,
+                'email_attempts' => $pengajuan->email_attempts,
+            ],
+        ], 202);
     }
 
     /**

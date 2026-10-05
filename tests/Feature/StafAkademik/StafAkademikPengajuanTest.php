@@ -1,5 +1,6 @@
 <?php
 
+use App\Jobs\KirimEmailKonfirmasiJob;
 use App\Mail\RekapDataMahasiswaMail;
 use App\Models\DataBeritaAcaraMahasiswa;
 use App\Models\Form;
@@ -10,6 +11,7 @@ use App\Models\User;
 use App\Models\YudisiumEvent;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Queue;
 use Laravel\Sanctum\Sanctum;
 
 uses(RefreshDatabase::class);
@@ -147,8 +149,8 @@ test('mahasiswa cannot access staf akademik endpoints', function () {
         ->assertJson(['message' => 'Forbidden']);
 });
 
-test('staf akademik can send email confirmation', function () {
-    Mail::fake();
+test('staf akademik can send email confirmation (async via queue)', function () {
+    Queue::fake();
 
     Sanctum::actingAs($this->stafAkademik);
 
@@ -168,16 +170,22 @@ test('staf akademik can send email confirmation', function () {
 
     $response = $this->postJson('/api/staf-akademik/pengajuan/'.$this->pengajuan->id.'/kirim-konfirmasi');
 
-    $response->assertStatus(200)
-        ->assertJson(['status' => 'success']);
+    // Assert 202 Accepted (async operation)
+    $response->assertStatus(202)
+        ->assertJson(['status' => 'success'])
+        ->assertJsonFragment(['email_status' => 'pending'])
+        ->assertJsonFragment(['email_attempts' => 1]);
 
-    Mail::assertSent(RekapDataMahasiswaMail::class, function ($mail) {
-        return $mail->hasTo($this->mahasiswa->email);
+    // Assert job was dispatched
+    Queue::assertPushed(KirimEmailKonfirmasiJob::class, function ($job) {
+        return $job->pengajuan->id === $this->pengajuan->id;
     });
 
+    // Assert email status is pending and attempts incremented
     $this->assertDatabaseHas('pengajuan_yudisium', [
         'id' => $this->pengajuan->id,
-        'status' => 'waiting_student_confirmation',
+        'email_status' => 'pending',
+        'email_attempts' => 1,
     ]);
 });
 
@@ -240,4 +248,195 @@ test('cannot checklist when status is not confirmed_by_student', function () {
 
     $response->assertStatus(409)
         ->assertJson(['status' => 'error']);
+});
+
+test('cannot send email when status is pending (concurrent send blocked)', function () {
+    Sanctum::actingAs($this->stafAkademik);
+
+    // Create data penilaian
+    DataBeritaAcaraMahasiswa::create([
+        'pengajuan_id' => $this->pengajuan->id,
+        'ipk' => 3.75,
+        'persen_nilai_d' => 5.50,
+        'sks_ditempuh' => 144,
+        'similarity_index' => 15.25,
+        'skor_bahasa_inggris' => 550,
+        'status_judul_pa' => 'disetujui',
+        'status_bebas_pelanggaran' => true,
+    ]);
+
+    // Set email status to pending
+    $this->pengajuan->update([
+        'status' => 'checking_akademik',
+        'email_status' => 'pending',
+    ]);
+
+    $response = $this->postJson('/api/staf-akademik/pengajuan/'.$this->pengajuan->id.'/kirim-konfirmasi');
+
+    $response->assertStatus(409)
+        ->assertJson([
+            'status' => 'error',
+            'message' => 'Email sedang dalam proses pengiriman, mohon tunggu.',
+        ]);
+});
+
+test('job successfully sends email and updates status', function () {
+    Mail::fake();
+
+    // Create data penilaian
+    $dataBeritaAcara = DataBeritaAcaraMahasiswa::create([
+        'pengajuan_id' => $this->pengajuan->id,
+        'ipk' => 3.75,
+        'persen_nilai_d' => 5.50,
+        'sks_ditempuh' => 144,
+        'similarity_index' => 15.25,
+        'skor_bahasa_inggris' => 550,
+        'status_judul_pa' => 'disetujui',
+        'status_bebas_pelanggaran' => true,
+    ]);
+
+    $this->pengajuan->update(['status' => 'checking_akademik']);
+
+    // Execute job
+    $job = new KirimEmailKonfirmasiJob($this->pengajuan);
+    $job->handle();
+
+    // Assert email was sent
+    Mail::assertSent(RekapDataMahasiswaMail::class, function ($mail) {
+        return $mail->hasTo($this->mahasiswa->email);
+    });
+
+    // Assert status updated
+    $this->assertDatabaseHas('pengajuan_yudisium', [
+        'id' => $this->pengajuan->id,
+        'email_status' => 'sent',
+        'status' => 'waiting_student_confirmation',
+    ]);
+
+    // Assert email_sent_at is not null
+    $this->pengajuan->refresh();
+    expect($this->pengajuan->email_sent_at)->not->toBeNull();
+    expect($this->pengajuan->email_error)->toBeNull();
+});
+
+test('job failure updates email_status to failed and stores error', function () {
+    Mail::shouldReceive('to')
+        ->andThrow(new \Exception('SMTP connection failed'));
+
+    // Create data penilaian
+    DataBeritaAcaraMahasiswa::create([
+        'pengajuan_id' => $this->pengajuan->id,
+        'ipk' => 3.75,
+        'persen_nilai_d' => 5.50,
+        'sks_ditempuh' => 144,
+        'similarity_index' => 15.25,
+        'skor_bahasa_inggris' => 550,
+        'status_judul_pa' => 'disetujui',
+        'status_bebas_pelanggaran' => true,
+    ]);
+
+    $this->pengajuan->update(['status' => 'checking_akademik']);
+
+    $job = new KirimEmailKonfirmasiJob($this->pengajuan);
+
+    try {
+        $job->handle();
+    } catch (\Exception $e) {
+        $job->failed($e);
+    }
+
+    // Assert email_status is failed
+    $this->assertDatabaseHas('pengajuan_yudisium', [
+        'id' => $this->pengajuan->id,
+        'email_status' => 'failed',
+        'status' => 'checking_akademik', // Status tidak berubah
+    ]);
+
+    // Assert error is stored
+    $this->pengajuan->refresh();
+    expect($this->pengajuan->email_error)->toContain('SMTP connection failed');
+});
+
+test('can resend email after failure (attempts incremented)', function () {
+    Queue::fake();
+
+    Sanctum::actingAs($this->stafAkademik);
+
+    // Create data penilaian
+    DataBeritaAcaraMahasiswa::create([
+        'pengajuan_id' => $this->pengajuan->id,
+        'ipk' => 3.75,
+        'persen_nilai_d' => 5.50,
+        'sks_ditempuh' => 144,
+        'similarity_index' => 15.25,
+        'skor_bahasa_inggris' => 550,
+        'status_judul_pa' => 'disetujui',
+        'status_bebas_pelanggaran' => true,
+    ]);
+
+    // Simulate failed email
+    $this->pengajuan->update([
+        'status' => 'checking_akademik',
+        'email_status' => 'failed',
+        'email_error' => 'Previous error',
+        'email_attempts' => 1,
+    ]);
+
+    $response = $this->postJson('/api/staf-akademik/pengajuan/'.$this->pengajuan->id.'/kirim-konfirmasi');
+
+    $response->assertStatus(202)
+        ->assertJson(['status' => 'success'])
+        ->assertJsonFragment(['email_attempts' => 2]);
+
+    // Assert job was dispatched
+    Queue::assertPushed(KirimEmailKonfirmasiJob::class);
+
+    // Assert attempts incremented and error cleared
+    $this->assertDatabaseHas('pengajuan_yudisium', [
+        'id' => $this->pengajuan->id,
+        'email_status' => 'pending',
+        'email_attempts' => 2,
+        'email_error' => null,
+    ]);
+});
+
+test('dashboard can filter by email_status', function () {
+    Sanctum::actingAs($this->stafAkademik);
+
+    // Create another mahasiswa and pengajuan with different email_status
+    $mahasiswa2 = User::create([
+        'nomor_induk' => 'MHS-002',
+        'nama' => 'Mahasiswa Test 2',
+        'email' => 'mahasiswa2@test.com',
+        'role_id' => $this->roleMahasiswa->id,
+        'program_studi_id' => $this->prodi->id,
+    ]);
+
+    $pengajuan2 = PengajuanYudisium::create([
+        'user_id' => $mahasiswa2->id,
+        'yudisium_event_id' => $this->event->id,
+        'status' => 'checking_akademik',
+        'submitted_at' => now(),
+        'email_status' => 'sent',
+    ]);
+
+    $this->pengajuan->update(['email_status' => 'failed']);
+
+    // Filter by failed
+    $response = $this->getJson('/api/staf-akademik/pengajuan?email_status=failed');
+
+    $response->assertStatus(200)
+        ->assertJson(['status' => 'success']);
+
+    $data = $response->json('data.data');
+    expect($data)->toHaveCount(1);
+    expect($data[0]['id'])->toBe($this->pengajuan->id);
+
+    // Filter by sent
+    $response = $this->getJson('/api/staf-akademik/pengajuan?email_status=sent');
+
+    $response->assertStatus(200);
+    $data = $response->json('data.data');
+    expect($data)->toHaveCount(1);
+    expect($data[0]['id'])->toBe($pengajuan2->id);
 });
