@@ -7,6 +7,8 @@ use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Admin\YudisiumEventController;
 use App\Http\Controllers\Auth\GoogleAuthController;
 use App\Http\Controllers\BeritaAcaraController;
+use App\Http\Controllers\BeritaAcaraPdfController;
+use App\Http\Controllers\BeritaAcaraTemplateController;
 use App\Http\Controllers\Kadep\KadepPengajuanController;
 use App\Http\Controllers\Kaprodi\KaprodiPengajuanController;
 use App\Http\Controllers\Manit\ManitPengajuanController;
@@ -62,6 +64,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('/yudisium-events/{event}', [YudisiumEventController::class, 'update']);
     Route::patch('/yudisium-events/{event}/berita-acara', [BeritaAcaraController::class, 'update']);
 
+    // Berita Acara Preview & Export
+    Route::get('/berita-acara/preview', [BeritaAcaraPdfController::class, 'preview']);
+    Route::get('/berita-acara/export', [BeritaAcaraPdfController::class, 'export']);
+
     // Staf Akademik Routes
     Route::middleware('role:staf_akademik,super_admin')->prefix('staf-akademik')->group(function () {
         Route::get('/pengajuan', [StafAkademikPengajuanController::class, 'index']);
@@ -104,6 +110,12 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Admin Routes (Sementara tanpa role middleware)
     Route::prefix('admin')->group(function () {
+        // Berita Acara Template (Super Admin only)
+        Route::middleware('role:super_admin')->group(function () {
+            Route::get('/program-studi/{prodi}/berita-acara-template', [BeritaAcaraTemplateController::class, 'show']);
+            Route::put('/program-studi/{prodi}/berita-acara-template', [BeritaAcaraTemplateController::class, 'update']);
+        });
+
         Route::apiResource('forms', FormController::class);
 
         Route::get('forms/{form}/fields', [FormFieldController::class, 'index']);
