@@ -15,8 +15,6 @@ class YudisiumEvent extends Model
         'form_id',
         'nama_event',
         'periode',
-        'nomor_surat',
-        'tanggal_surat',
         'tgl_buka',
         'tgl_tutup',
         'tgl_yudisium',
