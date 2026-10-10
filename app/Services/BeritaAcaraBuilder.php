@@ -2,44 +2,32 @@
 
 namespace App\Services;
 
-use App\Models\ProgramStudi;
-use App\Models\YudisiumEvent;
+use App\Models\BeritaAcara;
 use Illuminate\Support\Facades\Storage;
 
 class BeritaAcaraBuilder
 {
-    /**
-     * Build HTML berita acara dari program studi dan yudisium event.
-     */
-    public function build(ProgramStudi $programStudi, YudisiumEvent $yudisiumEvent): string
+    public function build(BeritaAcara $beritaAcara): string
     {
-        // Ambil template (default jika null)
+        $programStudi = $beritaAcara->programStudi;
+
         $template = $programStudi->berita_acara_template
             ?? file_get_contents(resource_path('views/berita-acara/default.blade.php'));
 
-        // Ambil daftar mahasiswa yang sudah final_checked_akademik untuk prodi ini
-        $mahasiswaList = $yudisiumEvent->pengajuan()
-            ->whereHas('user', function ($query) use ($programStudi) {
-                $query->where('program_studi_id', $programStudi->id);
-            })
-            ->whereIn('status', ['final_checked_akademik', 'approved_kaprodi', 'completed'])
-            ->with(['user', 'dataBeritaAcara', 'approvedKaprodiBy', 'approvedManitBy', 'approvedKadepBy'])
+        $mahasiswaList = $beritaAcara->pengajuan()
+            ->with(['user', 'dataBeritaAcara'])
             ->get();
 
-        // Build tabel mahasiswa
         $tabelMahasiswa = $this->buildTabelMahasiswa($mahasiswaList);
 
-        // Cek apakah semua mahasiswa sudah di-approve oleh setiap peran
-        $semuaApprovedKaprodi = $mahasiswaList->every(fn ($p) => $p->approved_kaprodi_at !== null);
-        $semuaApprovedManit = $mahasiswaList->every(fn ($p) => $p->approved_manit_at !== null);
-        $semuaApprovedKadep = $mahasiswaList->every(fn ($p) => $p->approved_kadep_at !== null);
+        $semuaApprovedKaprodi = $beritaAcara->approved_kaprodi_at !== null;
+        $semuaApprovedManit = $beritaAcara->approved_manit_at !== null;
+        $semuaApprovedKadep = $beritaAcara->approved_kadep_at !== null;
 
-        // Ambil data penandatangan
         $kaprodi = $programStudi->kaprodi;
-        $manitUser = $mahasiswaList->first()?->approvedManitBy;
-        $kadepUser = $mahasiswaList->first()?->approvedKadepBy;
+        $manitUser = $beritaAcara->approvedManitBy;
+        $kadepUser = $beritaAcara->approvedKadepBy;
 
-        // Build tanda tangan (hanya tampil jika semua approved)
         $ttdKaprodi = $semuaApprovedKaprodi && $kaprodi?->tandaTangan
             ? $this->buildSignatureImage($kaprodi->tandaTangan->getRawOriginal('file_path'))
             : '';
@@ -50,12 +38,11 @@ class BeritaAcaraBuilder
             ? $this->buildSignatureImage($kadepUser->tandaTangan->getRawOriginal('file_path'))
             : '';
 
-        // Replacements dengan str_replace untuk keamanan
         $replacements = [
             '{{prodi}}' => $this->escape($programStudi->nama_prodi),
-            '{{periode}}' => $this->escape($yudisiumEvent->periode ?? '-'),
-            '{{nomor_surat}}' => $this->escape($yudisiumEvent->nomor_surat ?? '-'),
-            '{{tanggal_surat}}' => $this->escape($yudisiumEvent->tanggal_surat ?? '-'),
+            '{{periode}}' => $this->escape($beritaAcara->periode ?? '-'),
+            '{{nomor_surat}}' => $this->escape($beritaAcara->nomor_surat ?? '-'),
+            '{{tanggal_surat}}' => $this->escape($beritaAcara->tanggal_surat ?? '-'),
             '{{tabel_mahasiswa}}' => $tabelMahasiswa,
             '{{ttd_kaprodi}}' => $ttdKaprodi,
             '{{ttd_manit}}' => $ttdManit,
@@ -143,16 +130,4 @@ class BeritaAcaraBuilder
         return htmlspecialchars($value ?? '', ENT_QUOTES, 'UTF-8');
     }
 
-    /**
-     * Get jumlah mahasiswa yang memenuhi syarat.
-     */
-    public function getMahasiswaCount(ProgramStudi $programStudi, YudisiumEvent $yudisiumEvent): int
-    {
-        return $yudisiumEvent->pengajuan()
-            ->whereHas('user', function ($query) use ($programStudi) {
-                $query->where('program_studi_id', $programStudi->id);
-            })
-            ->whereIn('status', ['final_checked_akademik', 'approved_kaprodi', 'completed'])
-            ->count();
-    }
 }
