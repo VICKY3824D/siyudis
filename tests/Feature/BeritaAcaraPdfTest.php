@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\BeritaAcara;
 use App\Models\DataBeritaAcaraMahasiswa;
 use App\Models\Form;
 use App\Models\PengajuanYudisium;
@@ -17,12 +18,10 @@ beforeEach(function () {
 });
 
 test('preview mengganti semua placeholder dengan benar', function () {
-    // Setup roles
     $stafAkademikRole = Role::factory()->create(['name' => 'staf_akademik']);
     $kaprodiRole = Role::factory()->create(['name' => 'kaprodi']);
     $mahasiswaRole = Role::factory()->create(['name' => 'mahasiswa']);
 
-    // Setup users
     $stafAkademik = User::factory()->create(['role_id' => $stafAkademikRole->id]);
     $prodi = ProgramStudi::factory()->create(['nama_prodi' => 'Teknik Informatika']);
     $kaprodi = User::factory()->create([
@@ -37,16 +36,12 @@ test('preview mengganti semua placeholder dengan benar', function () {
         'program_studi_id' => $prodi->id,
     ]);
 
-    // Setup yudisium event
     $form = Form::factory()->create();
     $event = YudisiumEvent::factory()->create([
         'form_id' => $form->id,
         'periode' => '2026/2027',
-        'nomor_surat' => '001/BA/2026',
-        'tanggal_surat' => '2026-10-05',
     ]);
 
-    // Setup pengajuan
     $pengajuan = PengajuanYudisium::factory()->create([
         'user_id' => $mahasiswa->id,
         'yudisium_event_id' => $event->id,
@@ -57,9 +52,18 @@ test('preview mengganti semua placeholder dengan benar', function () {
         'pengajuan_id' => $pengajuan->id,
     ]);
 
-    // Test preview
+    $beritaAcara = BeritaAcara::factory()->create([
+        'yudisium_event_id' => $event->id,
+        'program_studi_id' => $prodi->id,
+        'periode' => '2026/2027',
+        'nomor_surat' => '001/BA/2026',
+        'tanggal_surat' => '2026-10-05',
+        'diajukan_by' => $stafAkademik->id,
+    ]);
+    $beritaAcara->pengajuan()->attach($pengajuan->id);
+
     $response = actingAs($stafAkademik, 'sanctum')
-        ->getJson("/api/berita-acara/preview?program_studi_id={$prodi->id}&yudisium_event_id={$event->id}")
+        ->getJson("/api/berita-acara/{$beritaAcara->id}/preview")
         ->assertStatus(200)
         ->assertJsonStructure([
             'status',
@@ -68,7 +72,6 @@ test('preview mengganti semua placeholder dengan benar', function () {
 
     $html = $response->json('data.html');
 
-    // Verifikasi semua placeholder diganti
     expect($html)->toContain('Teknik Informatika');
     expect($html)->toContain('2026/2027');
     expect($html)->toContain('001/BA/2026');
@@ -77,7 +80,7 @@ test('preview mengganti semua placeholder dengan benar', function () {
     expect($html)->not->toContain('{{periode}}');
 });
 
-test('tanda tangan hanya tampil kalau semua mahasiswa di-approve', function () {
+test('tanda tangan hanya tampil kalau berita acara di-approve', function () {
     $kaprodiRole = Role::factory()->create(['name' => 'kaprodi']);
     $manitRole = Role::factory()->create(['name' => 'manit']);
     $kadepRole = Role::factory()->create(['name' => 'kadep']);
@@ -89,12 +92,10 @@ test('tanda tangan hanya tampil kalau semua mahasiswa di-approve', function () {
     $kadep = User::factory()->create(['role_id' => $kadepRole->id]);
     $prodi->update(['kaprodi_id' => $kaprodi->id]);
 
-    // Create fake signatures
     TandaTangan::factory()->create(['user_id' => $kaprodi->id, 'file_path' => 'tanda-tangan/kaprodi.png']);
     TandaTangan::factory()->create(['user_id' => $manit->id, 'file_path' => 'tanda-tangan/manit.png']);
     TandaTangan::factory()->create(['user_id' => $kadep->id, 'file_path' => 'tanda-tangan/kadep.png']);
 
-    // Create signature files
     Storage::disk('public')->put('tanda-tangan/kaprodi.png', 'fake-image-data');
     Storage::disk('public')->put('tanda-tangan/manit.png', 'fake-image-data');
     Storage::disk('public')->put('tanda-tangan/kadep.png', 'fake-image-data');
@@ -104,11 +105,18 @@ test('tanda tangan hanya tampil kalau semua mahasiswa di-approve', function () {
     $form = Form::factory()->create();
     $event = YudisiumEvent::factory()->create(['form_id' => $form->id]);
 
-    // Pengajuan belum di-approve semua
     $pengajuan = PengajuanYudisium::factory()->create([
         'user_id' => $mahasiswa->id,
         'yudisium_event_id' => $event->id,
         'status' => 'final_checked_akademik',
+    ]);
+
+    DataBeritaAcaraMahasiswa::factory()->create(['pengajuan_id' => $pengajuan->id]);
+
+    $beritaAcara = BeritaAcara::factory()->create([
+        'yudisium_event_id' => $event->id,
+        'program_studi_id' => $prodi->id,
+        'diajukan_by' => $kaprodi->id,
         'approved_kaprodi_by' => $kaprodi->id,
         'approved_kaprodi_at' => now(),
         'approved_manit_by' => null,
@@ -116,16 +124,14 @@ test('tanda tangan hanya tampil kalau semua mahasiswa di-approve', function () {
         'approved_kadep_by' => null,
         'approved_kadep_at' => null,
     ]);
+    $beritaAcara->pengajuan()->attach($pengajuan->id);
 
-    DataBeritaAcaraMahasiswa::factory()->create(['pengajuan_id' => $pengajuan->id]);
-
-    // Test preview - tanda tangan tidak tampil kecuali kaprodi
     $response = actingAs($kaprodi, 'sanctum')
-        ->getJson("/api/berita-acara/preview?program_studi_id={$prodi->id}&yudisium_event_id={$event->id}");
+        ->getJson("/api/berita-acara/{$beritaAcara->id}/preview");
 
     $html = $response->json('data.html');
-    expect($html)->toContain('<img src="data:'); // Kaprodi signature should appear
-    expect(substr_count($html, '<img src="data:'))->toBe(1); // Only 1 signature
+    expect($html)->toContain('<img src="data:');
+    expect(substr_count($html, '<img src="data:'))->toBe(1);
 });
 
 test('export returns PDF with correct content type', function () {
@@ -145,11 +151,18 @@ test('export returns PDF with correct content type', function () {
     $form = Form::factory()->create();
     $event = YudisiumEvent::factory()->create(['form_id' => $form->id]);
 
-    // Pengajuan sudah di-approve semua
     $pengajuan = PengajuanYudisium::factory()->create([
         'user_id' => $mahasiswa->id,
         'yudisium_event_id' => $event->id,
         'status' => 'completed',
+    ]);
+
+    DataBeritaAcaraMahasiswa::factory()->create(['pengajuan_id' => $pengajuan->id]);
+
+    $beritaAcara = BeritaAcara::factory()->create([
+        'yudisium_event_id' => $event->id,
+        'program_studi_id' => $prodi->id,
+        'diajukan_by' => $kaprodi->id,
         'approved_kaprodi_by' => $kaprodi->id,
         'approved_kaprodi_at' => now(),
         'approved_manit_by' => $manit->id,
@@ -157,12 +170,10 @@ test('export returns PDF with correct content type', function () {
         'approved_kadep_by' => $kadep->id,
         'approved_kadep_at' => now(),
     ]);
+    $beritaAcara->pengajuan()->attach($pengajuan->id);
 
-    DataBeritaAcaraMahasiswa::factory()->create(['pengajuan_id' => $pengajuan->id]);
-
-    // Test export
     actingAs($manit, 'sanctum')
-        ->getJson("/api/berita-acara/export?program_studi_id={$prodi->id}&yudisium_event_id={$event->id}")
+        ->getJson("/api/berita-acara/{$beritaAcara->id}/export")
         ->assertStatus(200)
         ->assertHeader('Content-Type', 'application/pdf');
 });
@@ -178,11 +189,18 @@ test('export returns 409 jika belum semua approved', function () {
     $form = Form::factory()->create();
     $event = YudisiumEvent::factory()->create(['form_id' => $form->id]);
 
-    // Pengajuan belum di-approve Manit dan Kadep
     $pengajuan = PengajuanYudisium::factory()->create([
         'user_id' => $mahasiswa->id,
         'yudisium_event_id' => $event->id,
         'status' => 'final_checked_akademik',
+    ]);
+
+    DataBeritaAcaraMahasiswa::factory()->create(['pengajuan_id' => $pengajuan->id]);
+
+    $beritaAcara = BeritaAcara::factory()->create([
+        'yudisium_event_id' => $event->id,
+        'program_studi_id' => $prodi->id,
+        'diajukan_by' => $stafAkademik->id,
         'approved_kaprodi_by' => null,
         'approved_kaprodi_at' => null,
         'approved_manit_by' => null,
@@ -190,11 +208,10 @@ test('export returns 409 jika belum semua approved', function () {
         'approved_kadep_by' => null,
         'approved_kadep_at' => null,
     ]);
-
-    DataBeritaAcaraMahasiswa::factory()->create(['pengajuan_id' => $pengajuan->id]);
+    $beritaAcara->pengajuan()->attach($pengajuan->id);
 
     actingAs($stafAkademik, 'sanctum')
-        ->getJson("/api/berita-acara/export?program_studi_id={$prodi->id}&yudisium_event_id={$event->id}")
+        ->getJson("/api/berita-acara/{$beritaAcara->id}/export")
         ->assertStatus(409)
         ->assertJson([
             'status' => 'error',
@@ -222,10 +239,46 @@ test('kaprodi prodi lain tidak dapat mengakses berita acara', function () {
 
     DataBeritaAcaraMahasiswa::factory()->create(['pengajuan_id' => $pengajuan->id]);
 
-    // Kaprodi prodi 1 mencoba akses berita acara prodi 2
+    $beritaAcara = BeritaAcara::factory()->create([
+        'yudisium_event_id' => $event->id,
+        'program_studi_id' => $prodi2->id,
+        'diajukan_by' => $kaprodi1->id,
+    ]);
+    $beritaAcara->pengajuan()->attach($pengajuan->id);
+
     actingAs($kaprodi1, 'sanctum')
-        ->getJson("/api/berita-acara/preview?program_studi_id={$prodi2->id}&yudisium_event_id={$event->id}")
+        ->getJson("/api/berita-acara/{$beritaAcara->id}/preview")
         ->assertStatus(403);
+});
+
+test('mahasiswa dapat mengakses berita acara jika pengajuannya terdaftar', function () {
+    $mahasiswaRole = Role::factory()->create(['name' => 'mahasiswa']);
+    $prodi = ProgramStudi::factory()->create();
+    $mahasiswa = User::factory()->create(['role_id' => $mahasiswaRole->id, 'program_studi_id' => $prodi->id]);
+    $stafAkademikRole = Role::factory()->create(['name' => 'staf_akademik']);
+    $stafAkademik = User::factory()->create(['role_id' => $stafAkademikRole->id]);
+
+    $form = Form::factory()->create();
+    $event = YudisiumEvent::factory()->create(['form_id' => $form->id]);
+
+    $pengajuan = PengajuanYudisium::factory()->create([
+        'user_id' => $mahasiswa->id,
+        'yudisium_event_id' => $event->id,
+        'status' => 'final_checked_akademik',
+    ]);
+
+    DataBeritaAcaraMahasiswa::factory()->create(['pengajuan_id' => $pengajuan->id]);
+
+    $beritaAcara = BeritaAcara::factory()->create([
+        'yudisium_event_id' => $event->id,
+        'program_studi_id' => $prodi->id,
+        'diajukan_by' => $stafAkademik->id,
+    ]);
+    $beritaAcara->pengajuan()->attach($pengajuan->id);
+
+    actingAs($mahasiswa, 'sanctum')
+        ->getJson("/api/berita-acara/{$beritaAcara->id}/preview")
+        ->assertStatus(200);
 });
 
 test('nilai HTML jahat ter-escape dengan benar', function () {
@@ -254,12 +307,18 @@ test('nilai HTML jahat ter-escape dengan benar', function () {
         'status_judul_pa' => '<b>malicious</b>',
     ]);
 
+    $beritaAcara = BeritaAcara::factory()->create([
+        'yudisium_event_id' => $event->id,
+        'program_studi_id' => $prodi->id,
+        'diajukan_by' => $stafAkademik->id,
+    ]);
+    $beritaAcara->pengajuan()->attach($pengajuan->id);
+
     $response = actingAs($stafAkademik, 'sanctum')
-        ->getJson("/api/berita-acara/preview?program_studi_id={$prodi->id}&yudisium_event_id={$event->id}");
+        ->getJson("/api/berita-acara/{$beritaAcara->id}/preview");
 
     $html = $response->json('data.html');
 
-    // Verifikasi HTML ter-escape
     expect($html)->toContain('&lt;script&gt;');
     expect($html)->toContain('&lt;img src=x');
     expect($html)->toContain('&lt;b&gt;malicious&lt;/b&gt;');
