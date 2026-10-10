@@ -6,7 +6,6 @@ use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Admin\YudisiumEventController;
 use App\Http\Controllers\Auth\GoogleAuthController;
-use App\Http\Controllers\BeritaAcaraController;
 use App\Http\Controllers\BeritaAcaraPdfController;
 use App\Http\Controllers\BeritaAcaraTemplateController;
 use App\Http\Controllers\Kadep\KadepPengajuanController;
@@ -15,6 +14,7 @@ use App\Http\Controllers\Manit\ManitPengajuanController;
 use App\Http\Controllers\PengajuanKonfirmasiController;
 use App\Http\Controllers\PengajuanYudisiumController;
 use App\Http\Controllers\ProgramStudiController;
+use App\Http\Controllers\StafAkademik\StafAkademikBeritaAcaraController;
 use App\Http\Controllers\StafAkademik\StafAkademikPengajuanController;
 use App\Http\Controllers\TandaTanganController;
 use App\Http\Controllers\UploadController;
@@ -62,11 +62,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/yudisium-events', [YudisiumEventController::class, 'index']);
     Route::post('/yudisium-events', [YudisiumEventController::class, 'store']);
     Route::patch('/yudisium-events/{event}', [YudisiumEventController::class, 'update']);
-    Route::patch('/yudisium-events/{event}/berita-acara', [BeritaAcaraController::class, 'update']);
 
     // Berita Acara Preview & Export
-    Route::get('/berita-acara/preview', [BeritaAcaraPdfController::class, 'preview']);
-    Route::get('/berita-acara/export', [BeritaAcaraPdfController::class, 'export']);
+    Route::get('/berita-acara/{beritaAcara}/preview', [BeritaAcaraPdfController::class, 'preview']);
+    Route::get('/berita-acara/{beritaAcara}/export', [BeritaAcaraPdfController::class, 'export']);
 
     // Staf Akademik Routes
     Route::middleware('role:staf_akademik,super_admin')->prefix('staf-akademik')->group(function () {
@@ -75,6 +74,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/pengajuan/{pengajuan}/penilaian', [StafAkademikPengajuanController::class, 'storePenilaian']);
         Route::post('/pengajuan/{pengajuan}/kirim-konfirmasi', [StafAkademikPengajuanController::class, 'kirimKonfirmasi']);
         Route::post('/pengajuan/{pengajuan}/checklist', [StafAkademikPengajuanController::class, 'checklist']);
+
+        Route::post('/berita-acara', [StafAkademikBeritaAcaraController::class, 'store']);
+        Route::patch('/berita-acara/{beritaAcara}', [StafAkademikBeritaAcaraController::class, 'update']);
     });
 
     // Approval Kaprodi
