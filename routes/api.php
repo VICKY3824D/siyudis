@@ -8,9 +8,6 @@ use App\Http\Controllers\Admin\YudisiumEventController;
 use App\Http\Controllers\Auth\GoogleAuthController;
 use App\Http\Controllers\BeritaAcaraPdfController;
 use App\Http\Controllers\BeritaAcaraTemplateController;
-use App\Http\Controllers\Kadep\KadepPengajuanController;
-use App\Http\Controllers\Kaprodi\KaprodiPengajuanController;
-use App\Http\Controllers\Manit\ManitPengajuanController;
 use App\Http\Controllers\PengajuanKonfirmasiController;
 use App\Http\Controllers\PengajuanYudisiumController;
 use App\Http\Controllers\ProgramStudiController;
@@ -20,6 +17,9 @@ use App\Http\Controllers\TandaTanganController;
 use App\Http\Controllers\UploadController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Kadep\KadepBeritaAcaraController;
+use App\Http\Controllers\Kaprodi\KaprodiBeritaAcaraController;
+use App\Http\Controllers\Manit\ManitBeritaAcaraController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -79,28 +79,26 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('/berita-acara/{beritaAcara}', [StafAkademikBeritaAcaraController::class, 'update']);
     });
 
-    // Approval Kaprodi
+    // Approval per berita acara: Kaprodi (prodi sendiri) -> Manit & Kadep (paralel)
     Route::middleware('role:kaprodi')->prefix('kaprodi')->group(function () {
-        Route::get('/pengajuan', [KaprodiPengajuanController::class, 'index']);
-        Route::get('/pengajuan/{pengajuan}', [KaprodiPengajuanController::class, 'show']);
-        Route::patch('/pengajuan/{pengajuan}/approve', [KaprodiPengajuanController::class, 'approve']);
-        Route::patch('/pengajuan/{pengajuan}/reject', [KaprodiPengajuanController::class, 'reject']);
+        Route::get('/berita-acara', [KaprodiBeritaAcaraController::class, 'index']);
+        Route::get('/berita-acara/{beritaAcara}', [KaprodiBeritaAcaraController::class, 'show']);
+        Route::patch('/berita-acara/{beritaAcara}/approve', [KaprodiBeritaAcaraController::class, 'approve']);
+        Route::patch('/berita-acara/{beritaAcara}/reject', [KaprodiBeritaAcaraController::class, 'reject']);
     });
 
-    // Approval Manit (paralel dengan Kadep)
     Route::middleware('role:manit')->prefix('manit')->group(function () {
-        Route::get('/pengajuan', [ManitPengajuanController::class, 'index']);
-        Route::get('/pengajuan/{pengajuan}/preview', [ManitPengajuanController::class, 'preview']);
-        Route::patch('/pengajuan/{pengajuan}/approve', [ManitPengajuanController::class, 'approve']);
-        Route::patch('/pengajuan/{pengajuan}/reject', [ManitPengajuanController::class, 'reject']);
+        Route::get('/berita-acara', [ManitBeritaAcaraController::class, 'index']);
+        Route::get('/berita-acara/{beritaAcara}', [ManitBeritaAcaraController::class, 'show']);
+        Route::patch('/berita-acara/{beritaAcara}/approve', [ManitBeritaAcaraController::class, 'approve']);
+        Route::patch('/berita-acara/{beritaAcara}/reject', [ManitBeritaAcaraController::class, 'reject']);
     });
 
-    // Approval Kadep (paralel dengan Manit)
     Route::middleware('role:kadep')->prefix('kadep')->group(function () {
-        Route::get('/pengajuan', [KadepPengajuanController::class, 'index']);
-        Route::get('/pengajuan/{pengajuan}/preview', [KadepPengajuanController::class, 'preview']);
-        Route::patch('/pengajuan/{pengajuan}/approve', [KadepPengajuanController::class, 'approve']);
-        Route::patch('/pengajuan/{pengajuan}/reject', [KadepPengajuanController::class, 'reject']);
+        Route::get('/berita-acara', [KadepBeritaAcaraController::class, 'index']);
+        Route::get('/berita-acara/{beritaAcara}', [KadepBeritaAcaraController::class, 'show']);
+        Route::patch('/berita-acara/{beritaAcara}/approve', [KadepBeritaAcaraController::class, 'approve']);
+        Route::patch('/berita-acara/{beritaAcara}/reject', [KadepBeritaAcaraController::class, 'reject']);
     });
 
     // E-Signature (Kaprodi/Manit/Kadep)
