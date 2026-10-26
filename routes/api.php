@@ -8,8 +8,12 @@ use App\Http\Controllers\Admin\YudisiumEventController;
 use App\Http\Controllers\Auth\GoogleAuthController;
 use App\Http\Controllers\BeritaAcaraPdfController;
 use App\Http\Controllers\BeritaAcaraTemplateController;
+use App\Http\Controllers\Kadep\KadepBeritaAcaraController;
+use App\Http\Controllers\Kaprodi\KaprodiBeritaAcaraController;
+use App\Http\Controllers\Manit\ManitBeritaAcaraController;
 use App\Http\Controllers\PengajuanKonfirmasiController;
 use App\Http\Controllers\PengajuanYudisiumController;
+use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ProgramStudiController;
 use App\Http\Controllers\StafAkademik\StafAkademikBeritaAcaraController;
 use App\Http\Controllers\StafAkademik\StafAkademikPengajuanController;
@@ -17,9 +21,6 @@ use App\Http\Controllers\TandaTanganController;
 use App\Http\Controllers\UploadController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\Kadep\KadepBeritaAcaraController;
-use App\Http\Controllers\Kaprodi\KaprodiBeritaAcaraController;
-use App\Http\Controllers\Manit\ManitBeritaAcaraController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -35,12 +36,12 @@ Route::prefix('auth/google')->group(function () {
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/auth/logout', [GoogleAuthController::class, 'logout']);
 
-    Route::get('/me', function (Request $request) {
-        return response()->json([
-            'status' => 'success',
-            'data' => $request->user()->load('programStudi'),
-        ]);
-    });
+    // Profil User
+    Route::get('/me', [ProfileController::class, 'show']);
+    Route::match(['put', 'patch'], '/me', [ProfileController::class, 'update']);
+    Route::get('/profile', [ProfileController::class, 'show']);
+    Route::match(['put', 'patch'], '/profile', [ProfileController::class, 'update']);
+    Route::match(['put', 'patch'], '/user', [ProfileController::class, 'update']);
 
     // Pengajuan Yudisium (Mahasiswa)
     Route::get('/pengajuan/active-form', [PengajuanYudisiumController::class, 'activeForm']);
