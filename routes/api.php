@@ -109,13 +109,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/signature/me', [TandaTanganController::class, 'update']);
     });
 
-    // Admin Routes (Sementara tanpa role middleware)
-    Route::prefix('admin')->group(function () {
-        // Berita Acara Template (Super Admin only)
-        Route::middleware('role:super_admin')->group(function () {
-            Route::get('/program-studi/{prodi}/berita-acara-template', [BeritaAcaraTemplateController::class, 'show']);
-            Route::put('/program-studi/{prodi}/berita-acara-template', [BeritaAcaraTemplateController::class, 'update']);
-        });
+    // Admin Routes
+    Route::prefix('admin')->middleware('role:super_admin')->group(function () {
+        // Berita Acara Template
+        Route::get('/program-studi/{prodi}/berita-acara-template', [BeritaAcaraTemplateController::class, 'show']);
+        Route::put('/program-studi/{prodi}/berita-acara-template', [BeritaAcaraTemplateController::class, 'update']);
 
         Route::apiResource('forms', FormController::class);
 
