@@ -26,7 +26,7 @@ class UserController extends Controller
     public function store(StoreUserRequest $request)
     {
         $user = User::create([
-            'nomor_induk' => 'STAFF-' . Str::random(8),
+            'nomor_induk' => 'STAFF-'.Str::random(8),
             'nama' => $request->nama,
             'email' => $request->email,
             'role_id' => $request->role_id,
@@ -51,16 +51,17 @@ class UserController extends Controller
 
     public function destroy(User $user)
     {
-        // $isReferenced = DB::table('pengajuan_yudisium')
-        //     ->where('checked_akademik_by', $user->id)
-        //     ->orWhere('acc_kaprodi_by', $user->id)
-        //     ->orWhere('acc_manit_by', $user->id)
-        //     ->orWhere('acc_kadep_by', $user->id)
-        //     ->exists();
+        $hasActivePengajuan = DB::table('pengajuan_yudisium')
+            ->where('user_id', $user->id)
+            ->where('status', '!=', 'completed')
+            ->exists();
 
-        // if ($isReferenced) {
-        //     return response()->json(['message' => 'User masih terkait proses pengajuan yang berjalan'], 409);
-        // }
+        if ($hasActivePengajuan) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'User masih memiliki pengajuan yudisium yang sedang berjalan',
+            ], 409);
+        }
 
         $user->delete();
 
