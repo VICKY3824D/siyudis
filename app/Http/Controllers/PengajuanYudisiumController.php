@@ -27,7 +27,7 @@ class PengajuanYudisiumController extends Controller
                 ->applicableTo($user->program_studi_id)
                 ->orderBy('order_position');
         }])
-            ->where('is_active', true)
+            ->sedangBerlangsung()
             ->latest('tgl_buka')
             ->first();
 
@@ -66,6 +66,12 @@ class PengajuanYudisiumController extends Controller
             $query->applicableTo($user->program_studi_id);
         }])
             ->findOrFail($request->integer('yudisium_event_id'));
+
+        if (! $event->isSedangBerlangsung()) {
+            throw ValidationException::withMessages([
+                'yudisium_event_id' => 'Periode yudisium ini sedang tidak dibuka untuk pengajuan.',
+            ]);
+        }
 
         $this->validateFieldValues($event, $request->array('field_values'));
 
