@@ -45,4 +45,23 @@ class YudisiumEvent extends Model
     {
         return $this->hasMany(PengajuanYudisium::class, 'yudisium_event_id');
     }
+
+    /**
+     * Event yang benar-benar sedang berlangsung: is_active DAN sekarang berada
+     * di antara tgl_buka dan tgl_tutup. Event yang is_active tapi sudah
+     * kedaluwarsa (atau belum dibuka) tidak dihitung.
+     */
+    public function scopeSedangBerlangsung($query)
+    {
+        return $query->where('is_active', true)
+            ->where('tgl_buka', '<=', now())
+            ->where('tgl_tutup', '>=', now());
+    }
+
+    public function isSedangBerlangsung(): bool
+    {
+        return $this->is_active
+            && $this->tgl_buka->lte(now())
+            && $this->tgl_tutup->gte(now());
+    }
 }
