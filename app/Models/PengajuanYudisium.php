@@ -62,4 +62,9 @@ class PengajuanYudisium extends Model
         return $this->belongsToMany(BeritaAcara::class, 'berita_acara_pengajuan', 'pengajuan_id', 'berita_acara_id')
             ->withTimestamps();
     }
+
+    public function riwayatPerubahan(): HasMany
+    {
+        return $this->hasMany(RiwayatPerubahan::class, 'pengajuan_id');
+    }
 }
