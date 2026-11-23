@@ -8,6 +8,7 @@ use App\Http\Resources\DataPenilaianResource;
 use App\Mail\RekapDataMahasiswaMail;
 use App\Models\DataBeritaAcaraMahasiswa;
 use App\Models\PengajuanYudisium;
+use App\Services\PencatatRiwayat;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -15,6 +16,8 @@ use Illuminate\Support\Facades\Mail;
 
 class StafAkademikPengajuanController extends Controller
 {
+    public function __construct(private PencatatRiwayat $pencatat) {}
+
     /**
      * Dashboard daftar mahasiswa dengan filter.
      */
@@ -85,6 +88,14 @@ class StafAkademikPengajuanController extends Controller
             ], 409);
         }
 
+        $pengajuan->load(['user.programStudi']);
+        $dataLama = $pengajuan->dataBeritaAcara;
+        $nilaiLama = $dataLama ? $dataLama->only([
+            'ipk', 'persen_nilai_d', 'sks_ditempuh', 'similarity_index',
+            'skor_bahasa_inggris', 'sertifikat_level', 'status_judul_pa',
+            'sertifikat_kompetensi', 'status_bebas_pelanggaran'
+        ]) : [];
+
         $dataBeritaAcara = DB::transaction(function () use ($request, $pengajuan) {
             // Update status jika dari submitted -> checking_akademik
             if ($pengajuan->status === 'submitted') {
@@ -98,6 +109,33 @@ class StafAkademikPengajuanController extends Controller
             );
         });
 
+        $nilaiBaru = $request->validated();
+        $perubahanField = [];
+        $jumlahPerubahan = 0;
+
+        foreach ($nilaiBaru as $field => $baru) {
+            $lama = $nilaiLama[$field] ?? null;
+            if ($lama != $baru) {
+                $perubahanField[$field] = ['lama' => $lama, 'baru' => $baru];
+                $jumlahPerubahan++;
+            }
+        }
+
+        $namaMahasiswa = $pengajuan->user->nama ?? 'Unknown';
+        $namaProdi = $pengajuan->user->programStudi->kode ?? 'Unknown';
+        $ringkasan = $jumlahPerubahan > 0
+            ? "Memperbarui {$jumlahPerubahan} atribut kelulusan atas nama {$namaMahasiswa} ({$namaProdi})"
+            : "Menginput data penilaian atas nama {$namaMahasiswa} ({$namaProdi})";
+
+        $this->pencatat->catat(
+            pelaku: $request->user(),
+            modul: 'pengajuan_yudisium',
+            jenis: 'perubahan_data',
+            objek: $pengajuan,
+            ringkasan: $ringkasan,
+            perubahanField: $perubahanField
+        );
+
         return response()->json([
             'status' => 'success',
             'message' => 'Data penilaian berhasil disimpan',
@@ -108,7 +146,7 @@ class StafAkademikPengajuanController extends Controller
     /**
      * Kirim email konfirmasi ke mahasiswa.
      */
-    public function kirimKonfirmasi(PengajuanYudisium $pengajuan): JsonResponse
+    public function kirimKonfirmasi(Request $request, PengajuanYudisium $pengajuan): JsonResponse
     {
         // Validasi sudah ada data penilaian
         if (!$pengajuan->dataBeritaAcara) {
@@ -127,7 +165,7 @@ class StafAkademikPengajuanController extends Controller
             ], 409);
         }
 
-        $pengajuan->load(['user', 'yudisiumEvent', 'dataBeritaAcara']);
+        $pengajuan->load(['user.programStudi', 'yudisiumEvent', 'dataBeritaAcara']);
 
         try {
             // Kirim email secara sinkron
@@ -135,6 +173,17 @@ class StafAkademikPengajuanController extends Controller
 
             // Update status setelah berhasil kirim email
             $pengajuan->update(['status' => 'waiting_student_confirmation']);
+
+            $namaMahasiswa = $pengajuan->user->nama ?? 'Unknown';
+            $namaProdi = $pengajuan->user->programStudi->kode ?? 'Unknown';
+
+            $this->pencatat->catat(
+                pelaku: $request->user(),
+                modul: 'pengajuan_yudisium',
+                jenis: 'perubahan_data',
+                objek: $pengajuan,
+                ringkasan: "Mengirim konfirmasi data ke mahasiswa {$namaMahasiswa} ({$namaProdi})"
+            );
 
             return response()->json([
                 'status' => 'success',
@@ -161,10 +210,23 @@ class StafAkademikPengajuanController extends Controller
             ], 409);
         }
 
+        $pengajuan->load(['user.programStudi']);
+
         $pengajuan->update([
             'status' => 'final_checked_akademik',
             'checked_akademik_by' => $request->user()->id,
         ]);
+
+        $namaMahasiswa = $pengajuan->user->nama ?? 'Unknown';
+        $namaProdi = $pengajuan->user->programStudi->kode ?? 'Unknown';
+
+        $this->pencatat->catat(
+            pelaku: $request->user(),
+            modul: 'pengajuan_yudisium',
+            jenis: 'pengesahan',
+            objek: $pengajuan,
+            ringkasan: "Checklist akhir pengajuan mahasiswa {$namaMahasiswa} ({$namaProdi})"
+        );
 
         return response()->json([
             'status' => 'success',
