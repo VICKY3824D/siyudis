@@ -7,6 +7,7 @@ use App\Http\Requests\UpdatePengajuanYudisiumRequest;
 use App\Models\PengajuanFieldValue;
 use App\Models\PengajuanYudisium;
 use App\Models\YudisiumEvent;
+use App\Services\PencatatRiwayat;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -14,6 +15,8 @@ use Illuminate\Validation\ValidationException;
 
 class PengajuanYudisiumController extends Controller
 {
+    public function __construct(private PencatatRiwayat $pencatat) {}
+
     /**
      * Ambil struktur form dinamis (field pengajuan) sesuai event yudisium
      * yang sedang aktif untuk program studi mahasiswa yang login.
@@ -114,7 +117,7 @@ class PengajuanYudisiumController extends Controller
     {
         $pengajuan = PengajuanYudisium::with(['yudisiumEvent.form.fields' => function ($query) use ($request) {
             $query->applicableTo($request->user()->program_studi_id);
-        }])
+        }, 'fieldValues'])
             ->where('user_id', $request->user()->id)
             ->first();
 
@@ -132,19 +135,48 @@ class PengajuanYudisiumController extends Controller
             ], 409);
         }
 
+        $pengajuan->load(['user.programStudi']);
+        $nilaiLamaMap = $pengajuan->fieldValues->keyBy('form_field_id')->map(fn($fv) => $fv->value);
+
         $this->validateFieldValues($pengajuan->yudisiumEvent, $request->array('field_values'));
 
-        DB::transaction(function () use ($pengajuan, $request) {
+        $perubahanField = [];
+        $jumlahPerubahan = 0;
+
+        DB::transaction(function () use ($pengajuan, $request, $nilaiLamaMap, &$perubahanField, &$jumlahPerubahan) {
             foreach ($request->array('field_values') as $fieldValue) {
+                $formFieldId = $fieldValue['form_field_id'];
+                $nilaiBaru = $fieldValue['value'] ?? null;
+                $nilaiLama = $nilaiLamaMap->get($formFieldId);
+
+                if ($nilaiLama != $nilaiBaru) {
+                    $perubahanField["field_{$formFieldId}"] = ['lama' => $nilaiLama, 'baru' => $nilaiBaru];
+                    $jumlahPerubahan++;
+                }
+
                 PengajuanFieldValue::updateOrCreate(
                     [
                         'pengajuan_id' => $pengajuan->id,
-                        'form_field_id' => $fieldValue['form_field_id'],
+                        'form_field_id' => $formFieldId,
                     ],
-                    ['value' => $fieldValue['value'] ?? null]
+                    ['value' => $nilaiBaru]
                 );
             }
         });
+
+        if ($jumlahPerubahan > 0) {
+            $namaMahasiswa = $pengajuan->user->nama ?? 'Unknown';
+            $namaProdi = $pengajuan->user->programStudi->kode ?? 'Unknown';
+
+            $this->pencatat->catat(
+                pelaku: $request->user(),
+                modul: 'pengajuan_yudisium',
+                jenis: 'perubahan_data',
+                objek: $pengajuan,
+                ringkasan: "Mahasiswa {$namaMahasiswa} ({$namaProdi}) memperbarui {$jumlahPerubahan} field pengajuan",
+                perubahanField: $perubahanField
+            );
+        }
 
         return response()->json([
             'status' => 'success',

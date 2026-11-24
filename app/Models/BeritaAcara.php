@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class BeritaAcara extends Model
 {
@@ -76,5 +77,10 @@ class BeritaAcara extends Model
     public function approvedKadepBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'approved_kadep_by');
+    }
+
+    public function riwayatPerubahan(): HasMany
+    {
+        return $this->hasMany(RiwayatPerubahan::class, 'berita_acara_id');
     }
 }

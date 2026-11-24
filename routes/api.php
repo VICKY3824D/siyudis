@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\FormController;
 use App\Http\Controllers\Admin\FormFieldController;
+use App\Http\Controllers\Admin\RiwayatPerubahanController;
 use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Admin\YudisiumEventController;
@@ -125,5 +126,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::apiResource('events', YudisiumEventController::class);
         Route::apiResource('users', AdminUserController::class)->except(['edit', 'create']);
         Route::apiResource('roles', RoleController::class)->only(['index']);
+
+        // Riwayat Perubahan
+        Route::get('riwayat', [RiwayatPerubahanController::class, 'index']);
+        Route::get('riwayat/ringkasan', [RiwayatPerubahanController::class, 'ringkasan']);
+        Route::get('riwayat/{riwayat}', [RiwayatPerubahanController::class, 'show']);
     });
 });
