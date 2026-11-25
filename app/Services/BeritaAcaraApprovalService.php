@@ -4,9 +4,13 @@ namespace App\Services;
 
 use App\Exceptions\ApprovalException;
 use App\Models\BeritaAcara;
+use App\Models\BeritaAcaraApproval;
 use App\Models\PengajuanYudisium;
+use App\Models\TandaTangan;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class BeritaAcaraApprovalService
 {
@@ -22,13 +26,9 @@ class BeritaAcaraApprovalService
     {
         return $this->transition($beritaAcara, function (BeritaAcara $ba) use ($user) {
             $this->ensureStatus($ba, self::DIAJUKAN, 'di-approve Kaprodi');
-            $this->ensureSignature($user);
-
-            $ba->update([
-                'status' => self::APPROVED_KAPRODI,
-                'approved_kaprodi_by' => $user->id,
-                'approved_kaprodi_at' => now(),
-            ]);
+            $this->recordApproval($ba, $user, 'kaprodi');
+            $ba->status = self::APPROVED_KAPRODI;
+            $ba->save();
         });
     }
 
@@ -45,16 +45,13 @@ class BeritaAcaraApprovalService
 
             $this->ensureStatus($ba, self::APPROVED_KAPRODI, "di-approve {$label}");
 
-            if ($ba->{"approved_{$role}_at"} !== null) {
+            if ($ba->hasApproved($role)) {
                 throw new ApprovalException("Berita acara ini sudah diproses {$label} sebelumnya.", 409);
             }
 
-            $this->ensureSignature($user);
+            $this->recordApproval($ba, $user, $role);
 
-            $ba->{"approved_{$role}_by"} = $user->id;
-            $ba->{"approved_{$role}_at"} = now();
-
-            if ($ba->approved_manit_at !== null && $ba->approved_kadep_at !== null) {
+            if ($ba->hasApproved('manit') && $ba->hasApproved('kadep')) {
                 $ba->status = self::COMPLETED;
                 $this->setStatusPengajuan($ba, 'completed');
             }
@@ -63,44 +60,58 @@ class BeritaAcaraApprovalService
         });
     }
 
-    public function rejectKaprodi(BeritaAcara $beritaAcara, string $catatan): BeritaAcara
+    public function rejectKaprodi(BeritaAcara $beritaAcara, User $user, string $catatan): BeritaAcara
     {
-        return $this->transition($beritaAcara, function (BeritaAcara $ba) use ($catatan) {
+        return $this->transition($beritaAcara, function (BeritaAcara $ba) use ($user, $catatan) {
             $this->ensureStatus($ba, self::DIAJUKAN, 'direject Kaprodi');
-            $this->resetKeStafAkademik($ba, $catatan);
+            $this->resetKeStafAkademik($ba, $user, 'kaprodi', $catatan);
         });
     }
 
     /**
      * @param  'manit'|'kadep'  $role
      */
-    public function rejectParalel(BeritaAcara $beritaAcara, string $catatan, string $role): BeritaAcara
+    public function rejectParalel(BeritaAcara $beritaAcara, User $user, string $catatan, string $role): BeritaAcara
     {
-        return $this->transition($beritaAcara, function (BeritaAcara $ba) use ($catatan, $role) {
+        return $this->transition($beritaAcara, function (BeritaAcara $ba) use ($user, $catatan, $role) {
             $this->ensureStatus($ba, self::APPROVED_KAPRODI, 'direject '.ucfirst($role));
-            $this->resetKeStafAkademik($ba, $catatan);
+            $this->resetKeStafAkademik($ba, $user, $role, $catatan);
         });
     }
 
     /**
-     * Reject = seluruh berita acara kembali ke staf akademik. Semua approval
-     * di-reset (Kaprodi akan approve ulang nanti) dan mahasiswa dilepas dari
-     * berita acara supaya bisa dimasukkan ke berita acara baru.
+     * Reject = catat keputusan penolakan pada cycle aktif, majukan current_cycle,
+     * dan lepas mahasiswa agar dapat diajukan kembali pada berita acara baru.
      */
-    private function resetKeStafAkademik(BeritaAcara $ba, string $catatan): void
+    private function resetKeStafAkademik(BeritaAcara $ba, User $user, string $role, string $catatan): void
     {
+        $cycle = $ba->current_cycle ?? 1;
+
+        BeritaAcaraApproval::updateOrCreate(
+            [
+                'berita_acara_id' => $ba->id,
+                'cycle' => $cycle,
+                'role' => $role,
+            ],
+            [
+                'user_id' => $user->id,
+                'approver_nama' => $user->nama,
+                'status' => BeritaAcaraApproval::STATUS_REJECTED,
+                'signature_path' => null,
+                'catatan' => $catatan,
+                'acted_at' => now(),
+            ],
+        );
+
+        $ba->unsetRelation('approvals');
+
         $this->setStatusPengajuan($ba, 'checking_akademik');
         $ba->pengajuan()->detach();
 
         $ba->update([
             'status' => self::DITOLAK,
+            'current_cycle' => $cycle + 1,
             'catatan_revisi_internal' => $catatan,
-            'approved_kaprodi_by' => null,
-            'approved_kaprodi_at' => null,
-            'approved_manit_by' => null,
-            'approved_manit_at' => null,
-            'approved_kadep_by' => null,
-            'approved_kadep_at' => null,
         ]);
     }
 
@@ -117,11 +128,59 @@ class BeritaAcaraApprovalService
         }
     }
 
-    private function ensureSignature(User $user): void
+    /**
+     * Catat approval beserta snapshot nama dan file tanda tangan pada tabel berita_acara_approvals.
+     */
+    private function recordApproval(BeritaAcara $ba, User $user, string $role): void
     {
-        if (! $user->tandaTangan) {
+        $tandaTangan = $this->ensureSignature($user);
+        $cycle = $ba->current_cycle ?? 1;
+
+        BeritaAcaraApproval::create([
+            'berita_acara_id' => $ba->id,
+            'cycle' => $cycle,
+            'role' => $role,
+            'user_id' => $user->id,
+            'approver_nama' => $user->nama,
+            'status' => BeritaAcaraApproval::STATUS_APPROVED,
+            'signature_path' => $this->snapshotSignature($ba, $tandaTangan, $role, $cycle),
+            'catatan' => null,
+            'acted_at' => now(),
+        ]);
+
+        $ba->unsetRelation('approvals');
+    }
+
+    private function ensureSignature(User $user): TandaTangan
+    {
+        $tandaTangan = $user->tandaTangan;
+
+        if (! $tandaTangan) {
             throw new ApprovalException('Anda belum mengupload e-signature. Upload dulu lewat POST /signature.', 422);
         }
+
+        return $tandaTangan;
+    }
+
+    /**
+     * Salin file tanda tangan ke path snapshot terpisah agar tidak terpengaruh
+     * ketika pejabat mengganti atau menghapus e-signature di kemudian hari.
+     */
+    private function snapshotSignature(BeritaAcara $ba, TandaTangan $tandaTangan, string $role, int $cycle): ?string
+    {
+        $sourcePath = $tandaTangan->getRawOriginal('file_path');
+
+        if (! $sourcePath || ! Storage::disk('public')->exists($sourcePath)) {
+            return null;
+        }
+
+        $extension = pathinfo($sourcePath, PATHINFO_EXTENSION);
+        $filename = "ba-{$ba->id}-c{$cycle}-{$role}-".Str::uuid().($extension !== '' ? ".{$extension}" : '');
+        $snapshotPath = "tanda-tangan-snapshots/{$filename}";
+
+        Storage::disk('public')->copy($sourcePath, $snapshotPath);
+
+        return $snapshotPath;
     }
 
     /**
@@ -135,7 +194,7 @@ class BeritaAcaraApprovalService
 
             $callback($locked);
 
-            return $locked->fresh(['programStudi', 'yudisiumEvent', 'pengajuan.user']);
+            return $locked->fresh(['programStudi', 'yudisiumEvent', 'pengajuan.user', 'approvals.user']);
         });
     }
 }

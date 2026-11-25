@@ -3,12 +3,16 @@
 namespace App\Services;
 
 use App\Models\BeritaAcara;
+use App\Models\BeritaAcaraApproval;
+use App\Models\User;
 use Illuminate\Support\Facades\Storage;
 
 class BeritaAcaraBuilder
 {
     public function build(BeritaAcara $beritaAcara): string
     {
+        $beritaAcara->loadMissing(['programStudi.kaprodi', 'approvals.user.tandaTangan']);
+
         $programStudi = $beritaAcara->programStudi;
 
         $template = $programStudi->berita_acara_template
@@ -20,23 +24,9 @@ class BeritaAcaraBuilder
 
         $tabelMahasiswa = $this->buildTabelMahasiswa($mahasiswaList);
 
-        $semuaApprovedKaprodi = $beritaAcara->approved_kaprodi_at !== null;
-        $semuaApprovedManit = $beritaAcara->approved_manit_at !== null;
-        $semuaApprovedKadep = $beritaAcara->approved_kadep_at !== null;
-
-        $kaprodi = $programStudi->kaprodi;
-        $manitUser = $beritaAcara->approvedManitBy;
-        $kadepUser = $beritaAcara->approvedKadepBy;
-
-        $ttdKaprodi = $semuaApprovedKaprodi && $kaprodi?->tandaTangan
-            ? $this->buildSignatureImage($kaprodi->tandaTangan->getRawOriginal('file_path'))
-            : '';
-        $ttdManit = $semuaApprovedManit && $manitUser?->tandaTangan
-            ? $this->buildSignatureImage($manitUser->tandaTangan->getRawOriginal('file_path'))
-            : '';
-        $ttdKadep = $semuaApprovedKadep && $kadepUser?->tandaTangan
-            ? $this->buildSignatureImage($kadepUser->tandaTangan->getRawOriginal('file_path'))
-            : '';
+        $kaprodiData = $this->resolveApproverData($beritaAcara, 'kaprodi', $programStudi->kaprodi);
+        $manitData = $this->resolveApproverData($beritaAcara, 'manit');
+        $kadepData = $this->resolveApproverData($beritaAcara, 'kadep');
 
         $replacements = [
             '{{prodi}}' => $this->escape($programStudi->nama_prodi),
@@ -44,15 +34,42 @@ class BeritaAcaraBuilder
             '{{nomor_surat}}' => $this->escape($beritaAcara->nomor_surat ?? '-'),
             '{{tanggal_surat}}' => $this->escape($beritaAcara->tanggal_surat ?? '-'),
             '{{tabel_mahasiswa}}' => $tabelMahasiswa,
-            '{{ttd_kaprodi}}' => $ttdKaprodi,
-            '{{ttd_manit}}' => $ttdManit,
-            '{{ttd_kadep}}' => $ttdKadep,
-            '{{nama_kaprodi}}' => $this->escape($kaprodi?->nama ?? '-'),
-            '{{nama_manit}}' => $this->escape($manitUser?->nama ?? '-'),
-            '{{nama_kadep}}' => $this->escape($kadepUser?->nama ?? '-'),
+            '{{ttd_kaprodi}}' => $kaprodiData['signature'],
+            '{{ttd_manit}}' => $manitData['signature'],
+            '{{ttd_kadep}}' => $kadepData['signature'],
+            '{{nama_kaprodi}}' => $this->escape($kaprodiData['nama']),
+            '{{nama_manit}}' => $this->escape($manitData['nama']),
+            '{{nama_kadep}}' => $this->escape($kadepData['nama']),
         ];
 
         return str_replace(array_keys($replacements), array_values($replacements), $template);
+    }
+
+    /**
+     * Resolve signature HTML dan nama approver dari tabel berita_acara_approvals.
+     *
+     * @return array{signature: string, nama: string}
+     */
+    private function resolveApproverData(BeritaAcara $beritaAcara, string $role, ?User $unapprovedFallbackUser = null): array
+    {
+        $approval = $beritaAcara->approvalForRole($role);
+        $isApproved = $approval?->status === BeritaAcaraApproval::STATUS_APPROVED;
+
+        if (! $isApproved) {
+            return [
+                'signature' => '',
+                'nama' => $unapprovedFallbackUser?->nama ?? '-',
+            ];
+        }
+
+        $approverUser = $approval->user;
+        $nama = $approval->approver_nama ?? $approverUser?->nama ?? '-';
+        $signaturePath = $approval->signature_path ?? $approverUser?->tandaTangan?->getRawOriginal('file_path');
+
+        return [
+            'signature' => $signaturePath ? $this->buildSignatureImage($signaturePath) : '',
+            'nama' => $nama,
+        ];
     }
 
     /**
@@ -129,5 +146,4 @@ class BeritaAcaraBuilder
     {
         return htmlspecialchars($value ?? '', ENT_QUOTES, 'UTF-8');
     }
-
 }

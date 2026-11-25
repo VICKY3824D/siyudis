@@ -52,7 +52,7 @@ class BeritaAcaraPdfController extends Controller
             ], 409);
         }
 
-        if ($beritaAcara->approved_manit_at === null || $beritaAcara->approved_kadep_at === null) {
+        if (! $beritaAcara->hasApproved('manit') || ! $beritaAcara->hasApproved('kadep')) {
             return response()->json([
                 'status' => 'error',
                 'message' => 'Belum semua mahasiswa disetujui oleh Manager IT dan Kepala Departemen',

@@ -5,12 +5,13 @@ namespace App\Http\Controllers;
 use App\Exceptions\ApprovalException;
 use App\Http\Requests\RejectPengajuanRequest;
 use App\Models\BeritaAcara;
+use App\Models\BeritaAcaraApproval;
 use App\Services\BeritaAcaraApprovalService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 /**
- * Dasar untuk Manit & Kadep: alurnya identik dan paralel, beda hanya di kolom approval-nya.
+ * Dasar untuk Manit & Kadep: alurnya identik dan paralel, beda hanya di role approval-nya.
  */
 abstract class ParalelBeritaAcaraController extends Controller
 {
@@ -33,7 +34,11 @@ abstract class ParalelBeritaAcaraController extends Controller
             $query->where('status', $request->query('status'));
         } else {
             $query->where('status', BeritaAcaraApprovalService::APPROVED_KAPRODI)
-                ->whereNull("approved_{$this->role}_at");
+                ->whereDoesntHave('approvals', function ($approvalQuery) {
+                    $approvalQuery->whereColumn('berita_acara_approvals.cycle', 'berita_acara.current_cycle')
+                        ->where('role', $this->role)
+                        ->where('status', BeritaAcaraApproval::STATUS_APPROVED);
+                });
         }
 
         return response()->json([
@@ -53,7 +58,7 @@ abstract class ParalelBeritaAcaraController extends Controller
 
         $beritaAcara->load([
             'programStudi', 'yudisiumEvent', 'pengajuan.user', 'pengajuan.dataBeritaAcara',
-            'approvedKaprodiBy', 'approvedManitBy', 'approvedKadepBy',
+            'approvals.user',
         ]);
 
         return response()->json([
@@ -82,6 +87,7 @@ abstract class ParalelBeritaAcaraController extends Controller
     {
         $beritaAcara = $this->approval->rejectParalel(
             $beritaAcara,
+            $request->user(),
             $request->validated('catatan_revisi_internal'),
             $this->role,
         );
