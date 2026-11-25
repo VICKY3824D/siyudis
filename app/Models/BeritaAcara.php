@@ -21,14 +21,9 @@ class BeritaAcara extends Model
         'tanggal_surat',
         'periode',
         'status',
+        'current_cycle',
         'diajukan_by',
         'diajukan_at',
-        'approved_kaprodi_by',
-        'approved_kaprodi_at',
-        'approved_manit_by',
-        'approved_manit_at',
-        'approved_kadep_by',
-        'approved_kadep_at',
         'catatan_revisi_internal',
     ];
 
@@ -36,10 +31,8 @@ class BeritaAcara extends Model
     {
         return [
             'tanggal_surat' => 'date',
+            'current_cycle' => 'integer',
             'diajukan_at' => 'datetime',
-            'approved_kaprodi_at' => 'datetime',
-            'approved_manit_at' => 'datetime',
-            'approved_kadep_at' => 'datetime',
         ];
     }
 
@@ -64,19 +57,31 @@ class BeritaAcara extends Model
         return $this->belongsTo(User::class, 'diajukan_by');
     }
 
-    public function approvedKaprodiBy(): BelongsTo
+    public function approvals(): HasMany
     {
-        return $this->belongsTo(User::class, 'approved_kaprodi_by');
+        return $this->hasMany(BeritaAcaraApproval::class, 'berita_acara_id')
+            ->orderBy('cycle')
+            ->orderBy('acted_at');
     }
 
-    public function approvedManitBy(): BelongsTo
+    public function approvalForRole(string $role, ?int $cycle = null): ?BeritaAcaraApproval
     {
-        return $this->belongsTo(User::class, 'approved_manit_by');
+        $targetCycle = $cycle ?? $this->current_cycle ?? 1;
+
+        if ($this->relationLoaded('approvals')) {
+            return $this->approvals
+                ->first(fn (BeritaAcaraApproval $approval) => (int) $approval->cycle === (int) $targetCycle && $approval->role === $role);
+        }
+
+        return $this->approvals()
+            ->where('cycle', $targetCycle)
+            ->where('role', $role)
+            ->first();
     }
 
-    public function approvedKadepBy(): BelongsTo
+    public function hasApproved(string $role, ?int $cycle = null): bool
     {
-        return $this->belongsTo(User::class, 'approved_kadep_by');
+        return $this->approvalForRole($role, $cycle)?->status === BeritaAcaraApproval::STATUS_APPROVED;
     }
 
     public function riwayatPerubahan(): HasMany

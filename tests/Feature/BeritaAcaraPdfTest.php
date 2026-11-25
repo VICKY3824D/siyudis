@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\BeritaAcara;
+use App\Models\BeritaAcaraApproval;
 use App\Models\DataBeritaAcaraMahasiswa;
 use App\Models\Form;
 use App\Models\PengajuanYudisium;
@@ -9,6 +10,7 @@ use App\Models\Role;
 use App\Models\TandaTangan;
 use App\Models\User;
 use App\Models\YudisiumEvent;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 
 use function Pest\Laravel\actingAs;
@@ -117,12 +119,15 @@ test('tanda tangan hanya tampil kalau berita acara di-approve', function () {
         'yudisium_event_id' => $event->id,
         'program_studi_id' => $prodi->id,
         'diajukan_by' => $kaprodi->id,
-        'approved_kaprodi_by' => $kaprodi->id,
-        'approved_kaprodi_at' => now(),
-        'approved_manit_by' => null,
-        'approved_manit_at' => null,
-        'approved_kadep_by' => null,
-        'approved_kadep_at' => null,
+    ]);
+    BeritaAcaraApproval::factory()->create([
+        'berita_acara_id' => $beritaAcara->id,
+        'cycle' => 1,
+        'role' => 'kaprodi',
+        'user_id' => $kaprodi->id,
+        'approver_nama' => $kaprodi->nama,
+        'status' => BeritaAcaraApproval::STATUS_APPROVED,
+        'acted_at' => now(),
     ]);
     $beritaAcara->pengajuan()->attach($pengajuan->id);
 
@@ -163,13 +168,18 @@ test('export returns PDF with correct content type', function () {
         'yudisium_event_id' => $event->id,
         'program_studi_id' => $prodi->id,
         'diajukan_by' => $kaprodi->id,
-        'approved_kaprodi_by' => $kaprodi->id,
-        'approved_kaprodi_at' => now(),
-        'approved_manit_by' => $manit->id,
-        'approved_manit_at' => now(),
-        'approved_kadep_by' => $kadep->id,
-        'approved_kadep_at' => now(),
     ]);
+    foreach (['kaprodi' => $kaprodi, 'manit' => $manit, 'kadep' => $kadep] as $role => $approver) {
+        BeritaAcaraApproval::factory()->create([
+            'berita_acara_id' => $beritaAcara->id,
+            'cycle' => 1,
+            'role' => $role,
+            'user_id' => $approver->id,
+            'approver_nama' => $approver->nama,
+            'status' => BeritaAcaraApproval::STATUS_APPROVED,
+            'acted_at' => now(),
+        ]);
+    }
     $beritaAcara->pengajuan()->attach($pengajuan->id);
 
     actingAs($manit, 'sanctum')
@@ -201,12 +211,6 @@ test('export returns 409 jika belum semua approved', function () {
         'yudisium_event_id' => $event->id,
         'program_studi_id' => $prodi->id,
         'diajukan_by' => $stafAkademik->id,
-        'approved_kaprodi_by' => null,
-        'approved_kaprodi_at' => null,
-        'approved_manit_by' => null,
-        'approved_manit_at' => null,
-        'approved_kadep_by' => null,
-        'approved_kadep_at' => null,
     ]);
     $beritaAcara->pengajuan()->attach($pengajuan->id);
 
@@ -324,4 +328,92 @@ test('nilai HTML jahat ter-escape dengan benar', function () {
     expect($html)->toContain('&lt;b&gt;malicious&lt;/b&gt;');
     expect($html)->not->toContain('<script>alert("xss")</script>');
     expect($html)->not->toContain('<img src=x onerror=alert(1)>');
+});
+
+test('preview dan export tetap menampilkan tanda tangan serta nama approver saat approve meski signature dan kaprodi prodi berganti', function () {
+    $stafAkademikRole = Role::factory()->create(['name' => 'staf_akademik']);
+    $kaprodiRole = Role::factory()->create(['name' => 'kaprodi']);
+    $manitRole = Role::factory()->create(['name' => 'manit']);
+    $kadepRole = Role::factory()->create(['name' => 'kadep']);
+    $mahasiswaRole = Role::factory()->create(['name' => 'mahasiswa']);
+
+    $prodi = ProgramStudi::factory()->create();
+    $stafAkademik = User::factory()->create(['role_id' => $stafAkademikRole->id]);
+    $kaprodiLama = User::factory()->create([
+        'role_id' => $kaprodiRole->id,
+        'program_studi_id' => $prodi->id,
+        'nama' => 'Dr. Kaprodi Lama',
+    ]);
+    $kaprodiBaru = User::factory()->create([
+        'role_id' => $kaprodiRole->id,
+        'program_studi_id' => $prodi->id,
+        'nama' => 'Dr. Kaprodi Baru',
+    ]);
+    $manit = User::factory()->create(['role_id' => $manitRole->id, 'nama' => 'Dr. Manit Asli']);
+    $kadep = User::factory()->create(['role_id' => $kadepRole->id, 'nama' => 'Dr. Kadep Asli']);
+    $prodi->update(['kaprodi_id' => $kaprodiLama->id]);
+
+    $oldKaprodiBytes = UploadedFile::fake()->image('kaprodi-lama.png', 40, 20)->getContent();
+    $newKaprodiFile = UploadedFile::fake()->image('kaprodi-baru.png', 80, 40);
+    $newKaprodiBytes = $newKaprodiFile->getContent();
+
+    Storage::disk('public')->put('tanda-tangan/kaprodi-lama.png', $oldKaprodiBytes);
+    Storage::disk('public')->put('tanda-tangan/manit.png', UploadedFile::fake()->image('manit.png')->getContent());
+    Storage::disk('public')->put('tanda-tangan/kadep.png', UploadedFile::fake()->image('kadep.png')->getContent());
+
+    TandaTangan::factory()->create(['user_id' => $kaprodiLama->id, 'file_path' => 'tanda-tangan/kaprodi-lama.png']);
+    TandaTangan::factory()->create(['user_id' => $manit->id, 'file_path' => 'tanda-tangan/manit.png']);
+    TandaTangan::factory()->create(['user_id' => $kadep->id, 'file_path' => 'tanda-tangan/kadep.png']);
+
+    $mahasiswa = User::factory()->create(['role_id' => $mahasiswaRole->id, 'program_studi_id' => $prodi->id]);
+    $form = Form::factory()->create();
+    $event = YudisiumEvent::factory()->create(['form_id' => $form->id]);
+    $pengajuan = PengajuanYudisium::factory()->create([
+        'user_id' => $mahasiswa->id,
+        'yudisium_event_id' => $event->id,
+        'status' => 'final_checked_akademik',
+    ]);
+    DataBeritaAcaraMahasiswa::factory()->create(['pengajuan_id' => $pengajuan->id]);
+
+    $beritaAcara = BeritaAcara::factory()->create([
+        'yudisium_event_id' => $event->id,
+        'program_studi_id' => $prodi->id,
+        'diajukan_by' => $stafAkademik->id,
+        'status' => 'diajukan',
+    ]);
+    $beritaAcara->pengajuan()->attach($pengajuan->id);
+
+    actingAs($kaprodiLama, 'sanctum')
+        ->patchJson("/api/kaprodi/berita-acara/{$beritaAcara->id}/approve")
+        ->assertOk();
+    actingAs($manit, 'sanctum')
+        ->patchJson("/api/manit/berita-acara/{$beritaAcara->id}/approve")
+        ->assertOk();
+    actingAs($kadep, 'sanctum')
+        ->patchJson("/api/kadep/berita-acara/{$beritaAcara->id}/approve")
+        ->assertOk();
+
+    // Setelah completed: kaprodi lama ganti signature, ubah nama user, dan prodi ganti kaprodi
+    actingAs($kaprodiLama, 'sanctum')
+        ->put('/api/signature/me', ['file' => $newKaprodiFile])
+        ->assertOk();
+    $kaprodiLama->update(['nama' => 'Dr. Kaprodi Berubah Nama']);
+    $prodi->update(['kaprodi_id' => $kaprodiBaru->id]);
+
+    $previewResponse = actingAs($stafAkademik, 'sanctum')
+        ->getJson("/api/berita-acara/{$beritaAcara->id}/preview")
+        ->assertOk();
+
+    $html = $previewResponse->json('data.html');
+
+    expect($html)->toContain(base64_encode($oldKaprodiBytes))
+        ->and($html)->not->toContain(base64_encode($newKaprodiBytes))
+        ->and($html)->toContain('Dr. Kaprodi Lama')
+        ->and($html)->not->toContain('Dr. Kaprodi Baru')
+        ->and($html)->not->toContain('Dr. Kaprodi Berubah Nama');
+
+    actingAs($stafAkademik, 'sanctum')
+        ->getJson("/api/berita-acara/{$beritaAcara->id}/export")
+        ->assertOk()
+        ->assertHeader('Content-Type', 'application/pdf');
 });

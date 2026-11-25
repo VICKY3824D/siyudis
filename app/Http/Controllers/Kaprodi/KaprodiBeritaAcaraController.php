@@ -39,7 +39,7 @@ class KaprodiBeritaAcaraController extends Controller
 
         $beritaAcara->load([
             'programStudi', 'yudisiumEvent', 'pengajuan.user', 'pengajuan.dataBeritaAcara',
-            'approvedKaprodiBy', 'approvedManitBy', 'approvedKadepBy',
+            'approvals.user',
         ]);
 
         return response()->json([
@@ -67,6 +67,7 @@ class KaprodiBeritaAcaraController extends Controller
 
         $beritaAcara = $this->approval->rejectKaprodi(
             $beritaAcara,
+            $request->user(),
             $request->validated('catatan_revisi_internal'),
         );
 
